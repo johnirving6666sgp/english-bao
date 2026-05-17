@@ -12,6 +12,13 @@
   box-sizing: border-box;
 }
 
+html,
+body,
+#root {
+  width: 100%;
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
   min-width: 320px;
@@ -27,6 +34,7 @@ textarea {
 
 button {
   cursor: pointer;
+  min-width: 0;
 }
 
 button:disabled {
@@ -45,6 +53,7 @@ button:disabled {
 }
 
 .study-panel {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 22px;
@@ -196,6 +205,7 @@ h1 {
 }
 
 .mode-tabs {
+  min-width: 0;
   display: flex;
   gap: 8px;
   padding: 5px;
@@ -220,6 +230,7 @@ h1 {
 }
 
 .mode-tabs button {
+  min-width: 0;
   padding: 0 14px;
   color: #475467;
   background: transparent;
@@ -231,6 +242,7 @@ h1 {
 }
 
 .practice-card {
+  min-width: 0;
   min-height: 680px;
   padding: 26px;
   border: 1px solid #d9e1ea;
@@ -279,6 +291,7 @@ h1 {
 }
 
 .card-meta span {
+  max-width: 100%;
   padding: 7px 10px;
   border-radius: 8px;
   color: #344054;
@@ -295,6 +308,7 @@ h1 {
 
 .word-block,
 .prompt-panel {
+  min-width: 0;
   padding: 28px;
   border-radius: 8px;
   background: #182230;
@@ -343,6 +357,7 @@ h1 {
   color: #edf2f7;
   font-size: 22px;
   line-height: 1.55;
+  overflow-wrap: anywhere;
 }
 
 .repeat-controls {
@@ -393,6 +408,7 @@ h1 {
   color: #182230;
   font-size: 20px;
   line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .speech-status {
@@ -430,6 +446,7 @@ h1 {
 }
 
 textarea {
+  max-width: 100%;
   min-height: 92px;
   padding: 12px 14px;
   color: #182230;
@@ -472,6 +489,7 @@ textarea[readonly] {
 }
 
 .feedback {
+  min-width: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
@@ -492,6 +510,7 @@ textarea[readonly] {
   color: #344054;
   font-size: 18px;
   line-height: 1.55;
+  overflow-wrap: anywhere;
 }
 
 .card-actions {
@@ -531,6 +550,10 @@ textarea[readonly] {
 }
 
 @media (max-width: 620px) {
+  body {
+    min-width: 0;
+  }
+
   .workspace,
   .study-panel,
   .practice-card {
@@ -548,11 +571,28 @@ textarea[readonly] {
 
   .word-block h2,
   .prompt-panel h2 {
-    font-size: 42px;
+    font-size: clamp(34px, 14vw, 42px);
   }
 
   .example p {
     font-size: 18px;
+  }
+
+  .mode-tabs button,
+  .primary-button,
+  .secondary-button,
+  .listen-button,
+  .record-button {
+    white-space: normal;
+    text-align: center;
+  }
+
+  .feedback {
+    grid-template-columns: 1fr;
+  }
+
+  .feedback p {
+    grid-column: 1;
   }
 
   .card-actions {
