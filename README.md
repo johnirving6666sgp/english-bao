@@ -1,24 +1,15 @@
-# OpenClaw 输出看板
+# 英语学习宝
 
-OpenClaw 输出看板用于把 Obsidian vault 中 `agents/reports` 下的 Agent 报告整理成一个手机优先的阅读页面。当前按六个板块组织：企业AI大师、港股大师、日股大师、美股大师、A股大师、总管AIJamie。
+雅思词汇真经练习工具。当前版本把 Obsidian 里的词汇、中文释义和例句整理成前端练习台，支持例句跟读和中文例句复写英文表达。
 
 ## 功能
 
-- 从 `/Users/aijamie4bc/Documents/AIJamie/agents/reports` 生成报告快照
-- 按六个 Agent 板块浏览报告
-- 搜索标题、摘要和原文
-- 默认显示摘要，点开后阅读要点和原始 Markdown
-- 保留空板块，方便后续接入日股大师等新增输出
-
-## 当前接入方式
-
-当前版本生成了一个前端数据快照：`src/reportsData.js`。如果 Obsidian 里的报告更新，运行：
-
-```bash
-npm run sync:reports
-```
-
-然后刷新页面即可。
+- 22 个雅思词汇章节，1601 条词条
+- 按章节、主题和关键词筛选
+- 例句自然带读：先自然读一遍，再按意群慢速带读
+- 跟读识别：显示浏览器识别内容并给出参考分
+- 造句表达：显示中文例句，输入英文表达，结束后显示原例句
+- 小章节进度统计和完成鼓励
 
 ## 启动
 
@@ -26,3 +17,17 @@ npm run sync:reports
 npm install
 npm run dev
 ```
+
+默认访问：
+
+```text
+http://localhost:5173/
+```
+
+## 构建
+
+```bash
+npm run build
+```
+
+语音识别依赖浏览器 Web Speech API，建议使用 Chrome 或支持麦克风权限的现代浏览器。
