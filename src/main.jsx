@@ -6,6 +6,7 @@ import {
   Languages,
   Mic,
   MicOff,
+  RotateCcw,
   Search,
   Shuffle,
   Sparkles,
@@ -16,6 +17,8 @@ import { vocabChapters } from './vocabData';
 import './styles.css';
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+const REVIEW_STORAGE_KEY = 'english-bao-recent-study-v1';
+const MAX_REVIEW_ITEMS = 80;
 
 const normalize = (value) =>
   value
@@ -76,12 +79,28 @@ const getChineseExample = (entry) =>
   generatedExampleTranslations[entry.example] ||
   `请用英文表达一个包含“${entry.meaning}”含义的句子，并尽量使用核心表达“${entry.term}”。`;
 
+const loadReviewIds = () => {
+  try {
+    const saved = localStorage.getItem(REVIEW_STORAGE_KEY);
+    const parsed = saved ? JSON.parse(saved) : [];
+    return Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveReviewIds = (ids) => {
+  localStorage.setItem(REVIEW_STORAGE_KEY, JSON.stringify(ids.slice(0, MAX_REVIEW_ITEMS)));
+};
+
 function App() {
   const allEntries = useMemo(() => flattenEntries(vocabChapters), []);
   const [chapterId, setChapterId] = useState('all');
   const [sectionTitle, setSectionTitle] = useState('all');
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState('repeat');
+  const [reviewIds, setReviewIds] = useState(loadReviewIds);
+  const [reviewActive, setReviewActive] = useState(false);
   const [index, setIndex] = useState(0);
   const [englishExpression, setEnglishExpression] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -99,6 +118,12 @@ function App() {
   const sections = selectedChapter?.sections ?? [];
 
   const filteredEntries = useMemo(() => {
+    if (reviewActive) {
+      const reviewSet = new Set(reviewIds);
+      const reviewEntries = allEntries.filter((entry) => reviewSet.has(entry.id));
+      return reviewEntries.length ? reviewEntries : allEntries;
+    }
+
     const keyword = normalize(query);
     const list = allEntries.filter((entry) => {
       const inChapter = chapterId === 'all' || entry.chapterId === chapterId;
@@ -108,7 +133,7 @@ function App() {
       return inChapter && inSection && inSearch;
     });
     return list.length ? list : allEntries;
-  }, [allEntries, chapterId, query, sectionTitle]);
+  }, [allEntries, chapterId, query, reviewActive, reviewIds, sectionTitle]);
 
   const current = filteredEntries[index % filteredEntries.length];
   const sectionEntries = useMemo(
@@ -127,7 +152,7 @@ function App() {
     setIndex(0);
     resetCardState();
     setSectionResult(null);
-  }, [chapterId, sectionTitle, query, mode]);
+  }, [chapterId, sectionTitle, query, mode, reviewActive]);
 
   useEffect(() => {
     const syncVoices = () => setVoiceReady(window.speechSynthesis.getVoices().length > 0);
@@ -143,6 +168,14 @@ function App() {
     setSpeechScore(null);
     setSpeechStatus('');
   }
+
+  const rememberStudy = (entry) => {
+    setReviewIds((previous) => {
+      const next = [entry.id, ...previous.filter((id) => id !== entry.id)].slice(0, MAX_REVIEW_ITEMS);
+      saveReviewIds(next);
+      return next;
+    });
+  };
 
   const pickEnglishVoice = (voices) =>
     voices.find((voice) => voice.lang === 'en-US' && /Ava|Samantha|Nicky|Allison|Susan|Zoe|Alex/i.test(voice.name)) ||
@@ -220,6 +253,7 @@ function App() {
   };
 
   const recordScore = (entryScore) => {
+    rememberStudy(current);
     const currentSectionScores = scores[sectionKey] ?? {};
     const nextSectionScores = { ...currentSectionScores, [current.id]: entryScore };
     setScores((previous) => ({
@@ -322,6 +356,22 @@ function App() {
     recordScore(expressionScore);
   };
 
+  const startReview = () => {
+    if (!reviewIds.length) return;
+    setReviewActive(true);
+    setQuery('');
+    setIndex(0);
+    resetCardState();
+    setSectionResult(null);
+  };
+
+  const stopReview = () => {
+    setReviewActive(false);
+    setIndex(0);
+    resetCardState();
+    setSectionResult(null);
+  };
+
   return (
     <main className="app-shell">
       <aside className="study-panel">
@@ -340,6 +390,7 @@ function App() {
           <select
             id="chapter"
             value={chapterId}
+            disabled={reviewActive}
             onChange={(event) => {
               setChapterId(event.target.value);
               setSectionTitle('all');
@@ -360,7 +411,7 @@ function App() {
             id="section"
             value={sectionTitle}
             onChange={(event) => setSectionTitle(event.target.value)}
-            disabled={!selectedChapter}
+            disabled={!selectedChapter || reviewActive}
           >
             <option value="all">全部主题</option>
             {sections.map((section) => (
@@ -379,10 +430,29 @@ function App() {
               id="search"
               value={query}
               placeholder="单词、释义、例句"
+              disabled={reviewActive}
               onChange={(event) => setQuery(event.target.value)}
             />
           </div>
         </div>
+
+        <section className="review-box">
+          <div>
+            <span>复习篮</span>
+            <strong>{reviewIds.length}</strong>
+          </div>
+          {reviewActive ? (
+            <button className="review-button" onClick={stopReview}>
+              <ChevronLeft size={17} />
+              返回词库
+            </button>
+          ) : (
+            <button className="review-button" onClick={startReview} disabled={!reviewIds.length}>
+              <RotateCcw size={17} />
+              复习上次学习
+            </button>
+          )}
+        </section>
 
         <div className="stats">
           <div>
@@ -399,7 +469,9 @@ function App() {
       <section className="workspace">
         <header className="topbar">
           <div>
-            <p className="eyebrow">IELTS Vocabulary Trainer</p>
+            <p className="eyebrow">
+              {reviewActive ? 'Review Mode' : 'IELTS Vocabulary Trainer'}
+            </p>
             <h1>{mode === 'repeat' ? '慢速例句跟读' : '看中文例句，复写英文表达'}</h1>
           </div>
           <div className="mode-tabs" role="tablist" aria-label="练习模式">
@@ -417,6 +489,7 @@ function App() {
         <section className="practice-card">
           {sectionResult && <SectionResult result={sectionResult} onClose={() => setSectionResult(null)} />}
           <div className="card-meta">
+            {reviewActive && <span>复习上次学习</span>}
             <span>{current.chapterTitle}</span>
             <span>{current.sectionTitle}</span>
             <span>
