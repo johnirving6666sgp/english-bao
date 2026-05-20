@@ -191,6 +191,16 @@ input:disabled {
   background: rgba(255, 255, 255, 0.12);
 }
 
+.review-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.review-button.quiet {
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.12);
+}
+
 .review-box span,
 .stats span {
   color: #b8c2d2;
@@ -273,6 +283,30 @@ h1 {
 .mode-tabs button.active {
   color: #ffffff;
   background: #30628e;
+}
+
+.voice-panel {
+  display: grid;
+  grid-template-columns: auto minmax(180px, 360px) minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid #d9e1ea;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.voice-panel label {
+  color: #344054;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.voice-panel span {
+  color: #667085;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .practice-card {
@@ -396,7 +430,7 @@ h1 {
 
 .repeat-controls {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -554,13 +588,86 @@ textarea[readonly] {
   margin-top: 24px;
 }
 
+.review-card {
+  display: grid;
+  gap: 16px;
+}
+
+.review-card-head,
+.review-card-body,
+.review-card-answer {
+  padding: 22px;
+  border-radius: 8px;
+}
+
+.review-card-head {
+  color: #ffffff;
+  background: #182230;
+}
+
+.review-card-head span,
+.review-card-body span,
+.review-card-answer span {
+  display: block;
+  margin-bottom: 8px;
+  color: #667085;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.review-card-head span {
+  color: #b8c2d2;
+}
+
+.review-card-head strong {
+  display: block;
+  color: #f4c95d;
+  font-size: clamp(42px, 7vw, 76px);
+  line-height: 1;
+  overflow-wrap: anywhere;
+}
+
+.review-card-head p {
+  margin: 12px 0 0;
+  color: #edf2f7;
+  font-size: 20px;
+  font-weight: 850;
+}
+
+.review-card-body,
+.review-card-answer {
+  border: 1px solid #d9e1ea;
+  background: #ffffff;
+}
+
+.review-card-body p,
+.review-card-answer p {
+  margin-bottom: 0;
+  color: #182230;
+  font-size: 20px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.review-card-answer {
+  display: grid;
+  gap: 12px;
+}
+
+.review-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 @media (max-width: 980px) {
   .app-shell {
     grid-template-columns: 1fr;
   }
 
   .topbar,
-  .result-panel {
+  .result-panel,
+  .voice-panel {
     display: grid;
     grid-template-columns: 1fr;
   }
@@ -616,7 +723,8 @@ textarea[readonly] {
   .primary-button,
   .secondary-button,
   .listen-button,
-  .record-button {
+  .record-button,
+  .review-card-actions button {
     white-space: normal;
     text-align: center;
   }
@@ -632,6 +740,10 @@ textarea[readonly] {
   .card-actions {
     display: grid;
     grid-template-columns: 1fr 46px 1fr;
+  }
+
+  .review-card-actions {
+    display: grid;
   }
 
   .section-result,

@@ -6,6 +6,7 @@ import {
   Languages,
   Mic,
   MicOff,
+  Play,
   RotateCcw,
   Search,
   Shuffle,
@@ -18,6 +19,8 @@ import './styles.css';
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
 const REVIEW_STORAGE_KEY = 'english-bao-recent-study-v1';
+const PROGRESS_STORAGE_KEY = 'english-bao-last-progress-v1';
+const VOICE_STORAGE_KEY = 'english-bao-voice-v1';
 const MAX_REVIEW_ITEMS = 80;
 
 const normalize = (value) =>
@@ -93,15 +96,33 @@ const saveReviewIds = (ids) => {
   localStorage.setItem(REVIEW_STORAGE_KEY, JSON.stringify(ids.slice(0, MAX_REVIEW_ITEMS)));
 };
 
+const loadProgress = () => {
+  try {
+    return JSON.parse(localStorage.getItem(PROGRESS_STORAGE_KEY) || '{}');
+  } catch {
+    return {};
+  }
+};
+
+const loadVoiceName = () => {
+  try {
+    return localStorage.getItem(VOICE_STORAGE_KEY) || '';
+  } catch {
+    return '';
+  }
+};
+
 function App() {
   const allEntries = useMemo(() => flattenEntries(vocabChapters), []);
-  const [chapterId, setChapterId] = useState('all');
-  const [sectionTitle, setSectionTitle] = useState('all');
-  const [query, setQuery] = useState('');
-  const [mode, setMode] = useState('repeat');
+  const savedProgress = useMemo(() => loadProgress(), []);
+  const [chapterId, setChapterId] = useState(savedProgress.chapterId || 'all');
+  const [sectionTitle, setSectionTitle] = useState(savedProgress.sectionTitle || 'all');
+  const [query, setQuery] = useState(savedProgress.query || '');
+  const [mode, setMode] = useState(savedProgress.mode || 'repeat');
   const [reviewIds, setReviewIds] = useState(loadReviewIds);
   const [reviewActive, setReviewActive] = useState(false);
-  const [index, setIndex] = useState(0);
+  const [reviewCardActive, setReviewCardActive] = useState(false);
+  const [index, setIndex] = useState(savedProgress.index || 0);
   const [englishExpression, setEnglishExpression] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [spokenText, setSpokenText] = useState('');
@@ -109,6 +130,8 @@ function App() {
   const [speechStatus, setSpeechStatus] = useState('');
   const [listening, setListening] = useState(false);
   const [voiceReady, setVoiceReady] = useState(false);
+  const [voices, setVoices] = useState([]);
+  const [selectedVoiceName, setSelectedVoiceName] = useState(loadVoiceName);
   const [scores, setScores] = useState({});
   const [sectionResult, setSectionResult] = useState(null);
   const recognitionRef = useRef(null);
@@ -119,8 +142,8 @@ function App() {
 
   const filteredEntries = useMemo(() => {
     if (reviewActive) {
-      const reviewSet = new Set(reviewIds);
-      const reviewEntries = allEntries.filter((entry) => reviewSet.has(entry.id));
+      const entryMap = new Map(allEntries.map((entry) => [entry.id, entry]));
+      const reviewEntries = reviewIds.map((id) => entryMap.get(id)).filter(Boolean);
       return reviewEntries.length ? reviewEntries : allEntries;
     }
 
@@ -149,17 +172,46 @@ function App() {
   const expressionScore = scoreExpression(englishExpression, current.term);
 
   useEffect(() => {
-    setIndex(0);
-    resetCardState();
-    setSectionResult(null);
-  }, [chapterId, sectionTitle, query, mode, reviewActive]);
+    setIndex((value) => Math.min(value, Math.max(filteredEntries.length - 1, 0)));
+  }, [filteredEntries.length]);
 
   useEffect(() => {
-    const syncVoices = () => setVoiceReady(window.speechSynthesis.getVoices().length > 0);
+    resetCardState();
+    setSectionResult(null);
+  }, [chapterId, sectionTitle, query, mode, reviewActive, reviewCardActive]);
+
+  useEffect(() => {
+    const syncVoices = () => {
+      const nextVoices = window.speechSynthesis.getVoices().filter((voice) => voice.lang.startsWith('en'));
+      setVoices(nextVoices);
+      setVoiceReady(nextVoices.length > 0);
+      if (!selectedVoiceName && nextVoices.length) {
+        setSelectedVoiceName(pickEnglishVoice(nextVoices)?.name || nextVoices[0].name);
+      }
+    };
     syncVoices();
     window.speechSynthesis.addEventListener('voiceschanged', syncVoices);
     return () => window.speechSynthesis.removeEventListener('voiceschanged', syncVoices);
-  }, []);
+  }, [selectedVoiceName]);
+
+  useEffect(() => {
+    if (!selectedVoiceName) return;
+    localStorage.setItem(VOICE_STORAGE_KEY, selectedVoiceName);
+  }, [selectedVoiceName]);
+
+  useEffect(() => {
+    if (reviewActive) return;
+    localStorage.setItem(
+      PROGRESS_STORAGE_KEY,
+      JSON.stringify({
+        chapterId,
+        sectionTitle,
+        query,
+        mode,
+        index
+      })
+    );
+  }, [chapterId, index, mode, query, reviewActive, sectionTitle]);
 
   function resetCardState() {
     setEnglishExpression('');
@@ -185,6 +237,11 @@ function App() {
     voices.find((voice) => voice.lang.startsWith('en')) ||
     null;
 
+  const activeVoice = () => {
+    const browserVoices = voices.length ? voices : window.speechSynthesis.getVoices();
+    return browserVoices.find((voice) => voice.name === selectedVoiceName) || pickEnglishVoice(browserVoices);
+  };
+
   const splitForClearSpeech = (text) => {
     const chunks = text
       .replace(/\s+/g, ' ')
@@ -208,10 +265,11 @@ function App() {
     const config = typeof options === 'number' ? { rate: options } : options;
     const modeName = config.mode ?? 'guided';
     window.speechSynthesis.cancel();
-    const voices = window.speechSynthesis.getVoices();
-    const voice = pickEnglishVoice(voices);
+    const voice = activeVoice();
     const chunks =
-      modeName === 'guided'
+      modeName === 'human'
+        ? [{ text, rate: config.rate ?? 0.82, pitch: 1, pause: 0 }]
+        : modeName === 'guided'
         ? [
             { text, rate: 0.72, pitch: 1, pause: 760 },
             ...splitForClearSpeech(text).map((chunk, chunkIndex) => ({
@@ -359,6 +417,7 @@ function App() {
   const startReview = () => {
     if (!reviewIds.length) return;
     setReviewActive(true);
+    setReviewCardActive(false);
     setQuery('');
     setIndex(0);
     resetCardState();
@@ -367,6 +426,18 @@ function App() {
 
   const stopReview = () => {
     setReviewActive(false);
+    setReviewCardActive(false);
+    setIndex(0);
+    resetCardState();
+    setSectionResult(null);
+  };
+
+  const startReviewCards = () => {
+    if (!reviewIds.length) return;
+    setReviewActive(true);
+    setReviewCardActive(true);
+    setQuery('');
+    setMode('repeat');
     setIndex(0);
     resetCardState();
     setSectionResult(null);
@@ -394,6 +465,7 @@ function App() {
             onChange={(event) => {
               setChapterId(event.target.value);
               setSectionTitle('all');
+              setIndex(0);
             }}
           >
             <option value="all">全部章节</option>
@@ -410,7 +482,10 @@ function App() {
           <select
             id="section"
             value={sectionTitle}
-            onChange={(event) => setSectionTitle(event.target.value)}
+            onChange={(event) => {
+              setSectionTitle(event.target.value);
+              setIndex(0);
+            }}
             disabled={!selectedChapter || reviewActive}
           >
             <option value="all">全部主题</option>
@@ -431,7 +506,10 @@ function App() {
               value={query}
               placeholder="单词、释义、例句"
               disabled={reviewActive}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setIndex(0);
+              }}
             />
           </div>
         </div>
@@ -447,10 +525,16 @@ function App() {
               返回词库
             </button>
           ) : (
-            <button className="review-button" onClick={startReview} disabled={!reviewIds.length}>
-              <RotateCcw size={17} />
-              复习上次学习
-            </button>
+            <div className="review-actions">
+              <button className="review-button" onClick={startReview} disabled={!reviewIds.length}>
+                <RotateCcw size={17} />
+                复习上次学习
+              </button>
+              <button className="review-button quiet" onClick={startReviewCards} disabled={!reviewIds.length}>
+                <Play size={17} />
+                复习卡速览
+              </button>
+            </div>
           )}
         </section>
 
@@ -470,21 +554,47 @@ function App() {
         <header className="topbar">
           <div>
             <p className="eyebrow">
-              {reviewActive ? 'Review Mode' : 'IELTS Vocabulary Trainer'}
+              {reviewCardActive ? 'Review Cards' : reviewActive ? 'Review Mode' : 'IELTS Vocabulary Trainer'}
             </p>
-            <h1>{mode === 'repeat' ? '慢速例句跟读' : '看中文例句，复写英文表达'}</h1>
+            <h1>
+              {reviewCardActive ? '复习卡速览' : mode === 'repeat' ? '慢速例句跟读' : '看中文例句，复写英文表达'}
+            </h1>
           </div>
           <div className="mode-tabs" role="tablist" aria-label="练习模式">
-            <button className={mode === 'repeat' ? 'active' : ''} onClick={() => setMode('repeat')}>
+            <button
+              className={mode === 'repeat' ? 'active' : ''}
+              onClick={() => {
+                setReviewCardActive(false);
+                setMode('repeat');
+              }}
+            >
               <Volume2 size={18} />
               跟读
             </button>
-            <button className={mode === 'recall' ? 'active' : ''} onClick={() => setMode('recall')}>
+            <button
+              className={mode === 'recall' ? 'active' : ''}
+              onClick={() => {
+                setReviewCardActive(false);
+                setMode('recall');
+              }}
+            >
               <Sparkles size={18} />
               造句表达
             </button>
           </div>
         </header>
+
+        <section className="voice-panel">
+          <label htmlFor="voice">发音声音</label>
+          <select id="voice" value={selectedVoiceName} onChange={(event) => setSelectedVoiceName(event.target.value)}>
+            {voices.map((voice) => (
+              <option key={`${voice.name}-${voice.lang}`} value={voice.name}>
+                {voice.name} · {voice.lang}
+              </option>
+            ))}
+          </select>
+          <span>更接近真人的发音取决于当前设备可用语音；iPhone/Mac 上建议选 Samantha、Ava、Nicky、Alex 或 Google US English。</span>
+        </section>
 
         <section className="practice-card">
           {sectionResult && <SectionResult result={sectionResult} onClose={() => setSectionResult(null)} />}
@@ -500,7 +610,16 @@ function App() {
             </span>
           </div>
 
-          {mode === 'repeat' ? (
+          {reviewCardActive ? (
+            <ReviewFlashcard
+              current={current}
+              index={index}
+              total={filteredEntries.length}
+              moveTo={moveTo}
+              rememberStudy={rememberStudy}
+              speak={speak}
+            />
+          ) : mode === 'repeat' ? (
             <RepeatPractice
               current={current}
               listening={listening}
@@ -569,7 +688,11 @@ function RepeatPractice({
       </div>
 
       <div className="repeat-controls">
-        <button className="listen-button selected" onClick={() => speak(current.example, { mode: 'guided' })} disabled={!voiceReady}>
+        <button className="listen-button selected" onClick={() => speak(current.example, { mode: 'human' })} disabled={!voiceReady}>
+          <Volume2 size={22} />
+          真人感朗读
+        </button>
+        <button className="listen-button" onClick={() => speak(current.example, { mode: 'guided' })} disabled={!voiceReady}>
           <Volume2 size={22} />
           自然带读例句
         </button>
@@ -590,6 +713,57 @@ function RepeatPractice({
           <span>{scoreLabel}</span>
           <strong>{speechScore === null ? '--' : `${speechScore}%`}</strong>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ReviewFlashcard({ current, index, total, moveTo, rememberStudy, speak }) {
+  const [revealed, setRevealed] = useState(false);
+
+  useEffect(() => {
+    setRevealed(false);
+  }, [current.id]);
+
+  const next = () => {
+    rememberStudy(current);
+    moveTo(index + 1);
+  };
+
+  return (
+    <div className="review-card">
+      <div className="review-card-head">
+        <span>
+          {index + 1} / {total}
+        </span>
+        <strong>{current.term}</strong>
+        <p>{current.meaning}</p>
+      </div>
+
+      <div className="review-card-body">
+        <span>中文例句</span>
+        <p>{getChineseExample(current)}</p>
+      </div>
+
+      {revealed && (
+        <div className="review-card-answer">
+          <span>原例句</span>
+          <p>{current.example}</p>
+          <button className="secondary-button" onClick={() => speak(current.example, { mode: 'human' })}>
+            <Volume2 size={18} />
+            真人感朗读
+          </button>
+        </div>
+      )}
+
+      <div className="review-card-actions">
+        <button className="secondary-button" onClick={() => setRevealed((value) => !value)}>
+          {revealed ? '隐藏原例句' : '显示原例句'}
+        </button>
+        <button className="primary-button" onClick={next}>
+          下一个
+          <ChevronRight size={18} />
+        </button>
       </div>
     </div>
   );
