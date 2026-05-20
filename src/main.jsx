@@ -271,6 +271,7 @@ function App() {
   const rememberStudy = (entry) => {
     rememberDailyStudy(entry);
     setReviewIds((previous) => {
+      if (reviewActive && previous.includes(entry.id)) return previous;
       const next = [entry.id, ...previous.filter((id) => id !== entry.id)].slice(0, MAX_REVIEW_ITEMS);
       saveReviewIds(next);
       return next;
