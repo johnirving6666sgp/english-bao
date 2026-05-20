@@ -136,6 +136,8 @@ function App() {
   const [sectionResult, setSectionResult] = useState(null);
   const recognitionRef = useRef(null);
   const stoppingRecognitionRef = useRef(false);
+  const speechRunRef = useRef(0);
+  const speechTimersRef = useRef([]);
 
   const selectedChapter = vocabChapters.find((chapter) => chapter.id === chapterId);
   const sections = selectedChapter?.sections ?? [];
@@ -261,10 +263,18 @@ function App() {
     return utterance;
   };
 
+  const stopSpeaking = () => {
+    speechRunRef.current += 1;
+    speechTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    speechTimersRef.current = [];
+    window.speechSynthesis.cancel();
+  };
+
   const speak = (text, options = {}) => {
     const config = typeof options === 'number' ? { rate: options } : options;
     const modeName = config.mode ?? 'guided';
-    window.speechSynthesis.cancel();
+    stopSpeaking();
+    const runId = speechRunRef.current;
     const voice = activeVoice();
     const chunks =
       modeName === 'human'
@@ -287,11 +297,17 @@ function App() {
           }));
 
     const speakChunk = (chunkIndex) => {
+      if (runId !== speechRunRef.current) return;
       if (chunkIndex >= chunks.length) return;
       const item = chunks[chunkIndex];
       const utterance = makeUtterance(item.text, voice, item);
-      utterance.onend = () => window.setTimeout(() => speakChunk(chunkIndex + 1), item.pause);
-      utterance.onerror = () => window.setTimeout(() => speakChunk(chunkIndex + 1), item.pause);
+      const scheduleNext = () => {
+        if (runId !== speechRunRef.current) return;
+        const timer = window.setTimeout(() => speakChunk(chunkIndex + 1), item.pause);
+        speechTimersRef.current.push(timer);
+      };
+      utterance.onend = scheduleNext;
+      utterance.onerror = scheduleNext;
       window.speechSynthesis.speak(utterance);
     };
 
@@ -333,7 +349,7 @@ function App() {
   const startListening = async () => {
     if (!SpeechRecognition || listening) return;
     stoppingRecognitionRef.current = false;
-    window.speechSynthesis.cancel();
+    stopSpeaking();
     setSpokenText('');
     setSpeechScore(null);
     setSpeechStatus('正在准备麦克风。');
@@ -688,11 +704,7 @@ function RepeatPractice({
       </div>
 
       <div className="repeat-controls">
-        <button className="listen-button selected" onClick={() => speak(current.example, { mode: 'human' })} disabled={!voiceReady}>
-          <Volume2 size={22} />
-          真人感朗读
-        </button>
-        <button className="listen-button" onClick={() => speak(current.example, { mode: 'guided' })} disabled={!voiceReady}>
+        <button className="listen-button selected" onClick={() => speak(current.example, { mode: 'guided' })} disabled={!voiceReady}>
           <Volume2 size={22} />
           自然带读例句
         </button>
@@ -749,9 +761,9 @@ function ReviewFlashcard({ current, index, total, moveTo, rememberStudy, speak }
         <div className="review-card-answer">
           <span>原例句</span>
           <p>{current.example}</p>
-          <button className="secondary-button" onClick={() => speak(current.example, { mode: 'human' })}>
+          <button className="secondary-button" onClick={() => speak(current.example, { mode: 'guided' })}>
             <Volume2 size={18} />
-            真人感朗读
+            朗读原例句
           </button>
         </div>
       )}
