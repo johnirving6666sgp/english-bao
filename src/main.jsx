@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import {
   ChevronLeft,
   ChevronRight,
+  CheckCircle2,
   Languages,
   Mic,
   MicOff,
@@ -21,7 +22,16 @@ const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecogni
 const REVIEW_STORAGE_KEY = 'english-bao-recent-study-v1';
 const PROGRESS_STORAGE_KEY = 'english-bao-last-progress-v1';
 const VOICE_STORAGE_KEY = 'english-bao-voice-v1';
+const DAILY_STUDY_STORAGE_KEY = 'english-bao-daily-study-v1';
 const MAX_REVIEW_ITEMS = 80;
+
+const todayKey = () => {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 const normalize = (value) =>
   value
@@ -104,6 +114,22 @@ const loadProgress = () => {
   }
 };
 
+const loadDailyStudy = () => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(DAILY_STUDY_STORAGE_KEY) || '{}');
+    if (saved?.date === todayKey() && Array.isArray(saved.ids)) {
+      return { date: saved.date, ids: saved.ids.filter((id) => typeof id === 'string') };
+    }
+  } catch {
+    // Ignore malformed local data and start a clean daily record.
+  }
+  return { date: todayKey(), ids: [] };
+};
+
+const saveDailyStudy = (dailyStudy) => {
+  localStorage.setItem(DAILY_STUDY_STORAGE_KEY, JSON.stringify(dailyStudy));
+};
+
 const loadVoiceName = () => {
   try {
     return localStorage.getItem(VOICE_STORAGE_KEY) || '';
@@ -134,6 +160,8 @@ function App() {
   const [selectedVoiceName, setSelectedVoiceName] = useState(loadVoiceName);
   const [scores, setScores] = useState({});
   const [sectionResult, setSectionResult] = useState(null);
+  const [dailyStudy, setDailyStudy] = useState(loadDailyStudy);
+  const [sessionSummary, setSessionSummary] = useState(null);
   const recognitionRef = useRef(null);
   const stoppingRecognitionRef = useRef(false);
   const speechRunRef = useRef(0);
@@ -203,6 +231,10 @@ function App() {
 
   useEffect(() => {
     if (reviewActive) return;
+    saveCurrentProgress();
+  }, [chapterId, index, mode, query, reviewActive, sectionTitle]);
+
+  function saveCurrentProgress() {
     localStorage.setItem(
       PROGRESS_STORAGE_KEY,
       JSON.stringify({
@@ -213,7 +245,7 @@ function App() {
         index
       })
     );
-  }, [chapterId, index, mode, query, reviewActive, sectionTitle]);
+  }
 
   function resetCardState() {
     setEnglishExpression('');
@@ -223,7 +255,21 @@ function App() {
     setSpeechStatus('');
   }
 
+  const rememberDailyStudy = (entry) => {
+    setDailyStudy((previous) => {
+      const date = todayKey();
+      const baseIds = previous.date === date ? previous.ids : [];
+      const next = {
+        date,
+        ids: [entry.id, ...baseIds.filter((id) => id !== entry.id)]
+      };
+      saveDailyStudy(next);
+      return next;
+    });
+  };
+
   const rememberStudy = (entry) => {
+    rememberDailyStudy(entry);
     setReviewIds((previous) => {
       const next = [entry.id, ...previous.filter((id) => id !== entry.id)].slice(0, MAX_REVIEW_ITEMS);
       saveReviewIds(next);
@@ -424,6 +470,28 @@ function App() {
     setListening(false);
   };
 
+  const endTodayStudy = () => {
+    stopSpeaking();
+    if (listening) stopListening();
+    saveCurrentProgress();
+
+    const date = todayKey();
+    const baseIds = dailyStudy.date === date ? dailyStudy.ids : [];
+    const ids = [current.id, ...baseIds.filter((id) => id !== current.id)];
+    const nextDailyStudy = { date, ids };
+    saveDailyStudy(nextDailyStudy);
+    setDailyStudy(nextDailyStudy);
+    setSessionSummary({
+      date,
+      studiedCount: ids.length,
+      reviewCount: reviewIds.length,
+      chapterTitle: current.chapterTitle,
+      sectionTitle: current.sectionTitle,
+      term: current.term,
+      mode
+    });
+  };
+
   const submitExpression = (event) => {
     event.preventDefault();
     setSubmitted(true);
@@ -554,6 +622,17 @@ function App() {
           )}
         </section>
 
+        <section className="finish-box">
+          <div>
+            <span>今日学习</span>
+            <strong>{dailyStudy.date === todayKey() ? dailyStudy.ids.length : 0}</strong>
+          </div>
+          <button className="finish-button" onClick={endTodayStudy}>
+            <CheckCircle2 size={17} />
+            结束今天学习
+          </button>
+        </section>
+
         <div className="stats">
           <div>
             <span>当前词库</span>
@@ -614,6 +693,7 @@ function App() {
 
         <section className="practice-card">
           {sectionResult && <SectionResult result={sectionResult} onClose={() => setSectionResult(null)} />}
+          {sessionSummary && <SessionSummary summary={sessionSummary} onClose={() => setSessionSummary(null)} />}
           <div className="card-meta">
             {reviewActive && <span>复习上次学习</span>}
             <span>{current.chapterTitle}</span>
@@ -727,6 +807,27 @@ function RepeatPractice({
         </div>
       </div>
     </div>
+  );
+}
+
+function SessionSummary({ summary, onClose }) {
+  const modeLabel = summary.mode === 'repeat' ? '例句跟读' : '造句表达';
+
+  return (
+    <section className="session-summary">
+      <div>
+        <span>今日小结 · {summary.date}</span>
+        <strong>今天完成 {summary.studiedCount} 个词的学习记录</strong>
+        <p>
+          已保存到 {summary.chapterTitle} / {summary.sectionTitle}，下次进入会从“{summary.term}”附近继续。
+          复习篮里现在有 {summary.reviewCount} 个词，适合明天先快速过一遍。
+        </p>
+        <em>{modeLabel}这一轮先收住，今天的输入已经够扎实了。</em>
+      </div>
+      <button className="summary-close" onClick={onClose}>
+        知道了
+      </button>
+    </section>
   );
 }
 

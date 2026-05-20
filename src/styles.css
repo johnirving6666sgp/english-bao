@@ -82,6 +82,7 @@ button:disabled {
 .brand span,
 .field label,
 .review-box span,
+.finish-box span,
 .stats span,
 .card-meta span,
 .example span,
@@ -159,6 +160,7 @@ input:disabled {
 }
 
 .review-box,
+.finish-box,
 .stats div {
   padding: 15px;
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -170,6 +172,11 @@ input:disabled {
   display: grid;
   gap: 12px;
   margin-top: auto;
+}
+
+.finish-box {
+  display: grid;
+  gap: 12px;
 }
 
 .review-button {
@@ -201,13 +208,29 @@ input:disabled {
   background: rgba(255, 255, 255, 0.12);
 }
 
+.finish-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 42px;
+  border: 0;
+  border-radius: 8px;
+  color: #ffffff;
+  background: #30628e;
+  font-weight: 900;
+}
+
 .review-box span,
+.finish-box span,
 .stats span {
   color: #b8c2d2;
   font-size: 12px;
 }
 
 .review-box strong,
+.finish-box strong,
 .stats strong {
   display: block;
   margin-top: 6px;
@@ -349,6 +372,57 @@ h1 {
   margin: 8px 0 0;
   color: #344054;
   line-height: 1.45;
+}
+
+.session-summary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding: 18px;
+  border: 1px solid #c7e7d3;
+  border-radius: 8px;
+  background: #f0fdf4;
+}
+
+.session-summary span {
+  display: block;
+  margin-bottom: 6px;
+  color: #237a4b;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.session-summary strong {
+  display: block;
+  color: #182230;
+  font-size: 22px;
+}
+
+.session-summary p {
+  margin: 8px 0 0;
+  color: #344054;
+  line-height: 1.45;
+}
+
+.session-summary em {
+  display: block;
+  margin-top: 10px;
+  color: #237a4b;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.summary-close {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  color: #ffffff;
+  background: #237a4b;
+  font-weight: 900;
 }
 
 .card-meta {
@@ -699,6 +773,14 @@ textarea[readonly] {
   .study-panel,
   .practice-card {
     padding: 18px;
+  }
+
+  .session-summary {
+    display: grid;
+  }
+
+  .summary-close {
+    width: 100%;
   }
 
   .practice-card {
