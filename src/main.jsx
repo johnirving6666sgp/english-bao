@@ -23,6 +23,7 @@ const REVIEW_STORAGE_KEY = 'english-bao-recent-study-v1';
 const PROGRESS_STORAGE_KEY = 'english-bao-last-progress-v1';
 const VOICE_STORAGE_KEY = 'english-bao-voice-v1';
 const DAILY_STUDY_STORAGE_KEY = 'english-bao-daily-study-v1';
+const LAST_SESSION_REVIEW_STORAGE_KEY = 'english-bao-last-session-review-v1';
 const MAX_REVIEW_ITEMS = 80;
 
 const todayKey = () => {
@@ -130,6 +131,25 @@ const saveDailyStudy = (dailyStudy) => {
   localStorage.setItem(DAILY_STUDY_STORAGE_KEY, JSON.stringify(dailyStudy));
 };
 
+const cleanIdList = (ids) => (Array.isArray(ids) ? ids.filter((id) => typeof id === 'string') : []);
+
+const loadLastSessionReview = () => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LAST_SESSION_REVIEW_STORAGE_KEY) || '{}');
+    return {
+      date: typeof saved.date === 'string' ? saved.date : '',
+      ids: cleanIdList(saved.ids),
+      reviewedIds: cleanIdList(saved.reviewedIds)
+    };
+  } catch {
+    return { date: '', ids: [], reviewedIds: [] };
+  }
+};
+
+const saveLastSessionReview = (sessionReview) => {
+  localStorage.setItem(LAST_SESSION_REVIEW_STORAGE_KEY, JSON.stringify(sessionReview));
+};
+
 const loadVoiceName = () => {
   try {
     return localStorage.getItem(VOICE_STORAGE_KEY) || '';
@@ -161,7 +181,11 @@ function App() {
   const [scores, setScores] = useState({});
   const [sectionResult, setSectionResult] = useState(null);
   const [dailyStudy, setDailyStudy] = useState(loadDailyStudy);
+  const [lastSessionReview, setLastSessionReview] = useState(loadLastSessionReview);
+  const [reviewSourceIds, setReviewSourceIds] = useState([]);
   const [sessionSummary, setSessionSummary] = useState(null);
+  const restoredProgressRef = useRef(false);
+  const libraryProgressRef = useRef(null);
   const recognitionRef = useRef(null);
   const stoppingRecognitionRef = useRef(false);
   const speechRunRef = useRef(0);
@@ -173,7 +197,7 @@ function App() {
   const filteredEntries = useMemo(() => {
     if (reviewActive) {
       const entryMap = new Map(allEntries.map((entry) => [entry.id, entry]));
-      const reviewEntries = reviewIds.map((id) => entryMap.get(id)).filter(Boolean);
+      const reviewEntries = reviewSourceIds.map((id) => entryMap.get(id)).filter(Boolean);
       return reviewEntries.length ? reviewEntries : allEntries;
     }
 
@@ -186,7 +210,7 @@ function App() {
       return inChapter && inSection && inSearch;
     });
     return list.length ? list : allEntries;
-  }, [allEntries, chapterId, query, reviewActive, reviewIds, sectionTitle]);
+  }, [allEntries, chapterId, query, reviewActive, reviewSourceIds, sectionTitle]);
 
   const current = filteredEntries[index % filteredEntries.length];
   const sectionEntries = useMemo(
@@ -204,6 +228,13 @@ function App() {
   useEffect(() => {
     setIndex((value) => Math.min(value, Math.max(filteredEntries.length - 1, 0)));
   }, [filteredEntries.length]);
+
+  useEffect(() => {
+    if (restoredProgressRef.current || !savedProgress.currentId) return;
+    const savedIndex = filteredEntries.findIndex((entry) => entry.id === savedProgress.currentId);
+    if (savedIndex >= 0) setIndex(savedIndex);
+    restoredProgressRef.current = true;
+  }, [filteredEntries, savedProgress.currentId]);
 
   useEffect(() => {
     resetCardState();
@@ -234,17 +265,23 @@ function App() {
     saveCurrentProgress();
   }, [chapterId, index, mode, query, reviewActive, sectionTitle]);
 
+  function makeCurrentProgress() {
+    return {
+      chapterId,
+      sectionTitle,
+      query,
+      mode,
+      index,
+      currentId: current.id
+    };
+  }
+
+  function saveProgress(progress) {
+    localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(progress));
+  }
+
   function saveCurrentProgress() {
-    localStorage.setItem(
-      PROGRESS_STORAGE_KEY,
-      JSON.stringify({
-        chapterId,
-        sectionTitle,
-        query,
-        mode,
-        index
-      })
-    );
+    saveProgress(makeCurrentProgress());
   }
 
   function resetCardState() {
@@ -268,8 +305,22 @@ function App() {
     });
   };
 
+  const markReviewDone = (entry) => {
+    if (!reviewActive || !lastSessionReview.ids.includes(entry.id)) return;
+    setLastSessionReview((previous) => {
+      if (previous.reviewedIds.includes(entry.id)) return previous;
+      const next = {
+        ...previous,
+        reviewedIds: [...previous.reviewedIds, entry.id]
+      };
+      saveLastSessionReview(next);
+      return next;
+    });
+  };
+
   const rememberStudy = (entry) => {
     rememberDailyStudy(entry);
+    markReviewDone(entry);
     setReviewIds((previous) => {
       if (reviewActive && previous.includes(entry.id)) return previous;
       const next = [entry.id, ...previous.filter((id) => id !== entry.id)].slice(0, MAX_REVIEW_ITEMS);
@@ -480,12 +531,15 @@ function App() {
     const baseIds = dailyStudy.date === date ? dailyStudy.ids : [];
     const ids = [current.id, ...baseIds.filter((id) => id !== current.id)];
     const nextDailyStudy = { date, ids };
+    const nextLastSessionReview = { date, ids, reviewedIds: [] };
     saveDailyStudy(nextDailyStudy);
+    saveLastSessionReview(nextLastSessionReview);
     setDailyStudy(nextDailyStudy);
+    setLastSessionReview(nextLastSessionReview);
     setSessionSummary({
       date,
       studiedCount: ids.length,
-      reviewCount: reviewIds.length,
+      reviewCount: ids.length,
       chapterTitle: current.chapterTitle,
       sectionTitle: current.sectionTitle,
       term: current.term,
@@ -499,33 +553,43 @@ function App() {
     recordScore(expressionScore);
   };
 
-  const startReview = () => {
-    if (!reviewIds.length) return;
+  const pendingSessionReviewIds = lastSessionReview.ids.filter((id) => !lastSessionReview.reviewedIds.includes(id));
+
+  const startSessionReview = (asCards = false) => {
+    if (!pendingSessionReviewIds.length) return;
+    const progress = makeCurrentProgress();
+    libraryProgressRef.current = progress;
+    saveProgress(progress);
+    setReviewSourceIds(pendingSessionReviewIds);
     setReviewActive(true);
-    setReviewCardActive(false);
+    setReviewCardActive(asCards);
     setQuery('');
+    if (asCards) setMode('repeat');
     setIndex(0);
     resetCardState();
     setSectionResult(null);
   };
 
+  const startReview = () => {
+    startSessionReview(false);
+  };
+
   const stopReview = () => {
+    const progress = libraryProgressRef.current || loadProgress();
     setReviewActive(false);
     setReviewCardActive(false);
-    setIndex(0);
+    setReviewSourceIds([]);
+    setChapterId(progress.chapterId || 'all');
+    setSectionTitle(progress.sectionTitle || 'all');
+    setQuery(progress.query || '');
+    setMode(progress.mode || 'repeat');
+    setIndex(progress.index || 0);
     resetCardState();
     setSectionResult(null);
   };
 
   const startReviewCards = () => {
-    if (!reviewIds.length) return;
-    setReviewActive(true);
-    setReviewCardActive(true);
-    setQuery('');
-    setMode('repeat');
-    setIndex(0);
-    resetCardState();
-    setSectionResult(null);
+    startSessionReview(true);
   };
 
   return (
@@ -601,8 +665,13 @@ function App() {
 
         <section className="review-box">
           <div>
-            <span>复习篮</span>
-            <strong>{reviewIds.length}</strong>
+            <span>上次学习待复习</span>
+            <strong>{pendingSessionReviewIds.length}</strong>
+            <small>
+              {lastSessionReview.ids.length
+                ? `来自 ${lastSessionReview.date}，已复习 ${lastSessionReview.reviewedIds.length} / ${lastSessionReview.ids.length}`
+                : '点击“结束今天学习”后生成'}
+            </small>
           </div>
           {reviewActive ? (
             <button className="review-button" onClick={stopReview}>
@@ -611,11 +680,11 @@ function App() {
             </button>
           ) : (
             <div className="review-actions">
-              <button className="review-button" onClick={startReview} disabled={!reviewIds.length}>
+              <button className="review-button" onClick={startReview} disabled={!pendingSessionReviewIds.length}>
                 <RotateCcw size={17} />
                 复习上次学习
               </button>
-              <button className="review-button quiet" onClick={startReviewCards} disabled={!reviewIds.length}>
+              <button className="review-button quiet" onClick={startReviewCards} disabled={!pendingSessionReviewIds.length}>
                 <Play size={17} />
                 复习卡速览
               </button>
@@ -696,7 +765,7 @@ function App() {
           {sectionResult && <SectionResult result={sectionResult} onClose={() => setSectionResult(null)} />}
           {sessionSummary && <SessionSummary summary={sessionSummary} onClose={() => setSessionSummary(null)} />}
           <div className="card-meta">
-            {reviewActive && <span>复习上次学习</span>}
+            {reviewActive && <span>复习上次结束清单</span>}
             <span>{current.chapterTitle}</span>
             <span>{current.sectionTitle}</span>
             <span>

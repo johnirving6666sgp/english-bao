@@ -229,6 +229,14 @@ input:disabled {
   font-size: 12px;
 }
 
+.review-box small {
+  display: block;
+  margin-top: 8px;
+  color: #d8dee8;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .review-box strong,
 .finish-box strong,
 .stats strong {
