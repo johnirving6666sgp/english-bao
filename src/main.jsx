@@ -434,12 +434,24 @@ function App() {
     speechTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     speechTimersRef.current = [];
     utteranceRef.current = null;
+    let stoppedAudio = false;
     if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
+      const audio = audioRef.current;
+      stoppedAudio = true;
       audioRef.current = null;
+      audio.onended = null;
+      audio.onerror = null;
+      try {
+        audio.pause();
+        audio.currentTime = 0;
+        audio.removeAttribute('src');
+        audio.load();
+      } catch {
+        // Mobile browsers can throw while tearing down an active media session.
+      }
     }
     SpeechSynthesis?.cancel();
+    return stoppedAudio;
   };
 
   const speak = (text, options = {}) => {
@@ -574,10 +586,15 @@ function App() {
   const startListening = async () => {
     if (!SpeechRecognition || listening) return;
     stoppingRecognitionRef.current = false;
-    stopSpeaking();
+    const stoppedAudio = stopSpeaking();
     setSpokenText('');
     setSpeechScore(null);
     setSpeechStatus('正在准备麦克风。');
+
+    if (stoppedAudio) {
+      setReadStatus('朗读已停止，正在切换到跟读识别。');
+      await new Promise((resolve) => window.setTimeout(resolve, isAppleMobileBrowser ? 520 : 240));
+    }
 
     try {
       if (navigator.mediaDevices?.getUserMedia) {
