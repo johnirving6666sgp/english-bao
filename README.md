@@ -41,6 +41,12 @@ npm run build
 export OPENAI_API_KEY="your_api_key"
 ```
 
+也可以在本机新建不会提交到 Git 的 `.env.local`：
+
+```text
+OPENAI_API_KEY=your_api_key
+```
+
 试跑前 5 条：
 
 ```bash

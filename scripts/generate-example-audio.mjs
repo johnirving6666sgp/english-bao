@@ -7,6 +7,25 @@ import { vocabChapters } from '../src/vocabData.js';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const audioDir = path.join(root, 'public', 'audio', 'examples');
 const manifestPath = path.join(root, 'src', 'exampleAudioManifest.js');
+const readLocalEnv = async () => {
+  for (const fileName of ['.env.local', '.env']) {
+    try {
+      const content = await readFile(path.join(root, fileName), 'utf8');
+      for (const line of content.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#') || !trimmed.includes('=')) continue;
+        const [key, ...valueParts] = trimmed.split('=');
+        if (process.env[key]) continue;
+        process.env[key] = valueParts.join('=').replace(/^["']|["']$/g, '');
+      }
+    } catch {
+      // Local env files are optional.
+    }
+  }
+};
+
+await readLocalEnv();
+
 const apiKey = process.env.OPENAI_API_KEY;
 const model = process.env.OPENAI_TTS_MODEL || 'gpt-4o-mini-tts';
 const voice = process.env.OPENAI_TTS_VOICE || 'coral';

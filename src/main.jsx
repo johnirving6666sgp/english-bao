@@ -238,6 +238,7 @@ function App() {
   const [spokenText, setSpokenText] = useState('');
   const [speechScore, setSpeechScore] = useState(null);
   const [speechStatus, setSpeechStatus] = useState('');
+  const [readStatus, setReadStatus] = useState('');
   const [listening, setListening] = useState(false);
   const [voices, setVoices] = useState([]);
   const [selectedVoiceName, setSelectedVoiceName] = useState(loadVoiceName);
@@ -356,6 +357,7 @@ function App() {
     setSpokenText('');
     setSpeechScore(null);
     setSpeechStatus('');
+    setReadStatus('');
   }
 
   const rememberDailyStudy = (entry) => {
@@ -442,7 +444,7 @@ function App() {
 
   const speak = (text, options = {}) => {
     if (!SpeechSynthesis) {
-      setSpeechStatus('当前浏览器没有可用的系统朗读能力。');
+      setReadStatus('当前浏览器没有可用的系统朗读能力。');
       return;
     }
     const config = typeof options === 'number' ? { rate: options } : options;
@@ -474,7 +476,7 @@ function App() {
     const speakChunk = (chunkIndex) => {
       if (runId !== speechRunRef.current) return;
       if (chunkIndex >= chunks.length) {
-        setSpeechStatus('例句朗读完成。');
+        setReadStatus('例句朗读完成。');
         return;
       }
       const item = chunks[chunkIndex];
@@ -486,17 +488,17 @@ function App() {
         const timer = window.setTimeout(() => speakChunk(chunkIndex + 1), item.pause);
         speechTimersRef.current.push(timer);
       };
-      utterance.onstart = () => setSpeechStatus('正在播放例句朗读。');
+      utterance.onstart = () => setReadStatus('正在播放例句朗读。');
       utterance.onend = scheduleNext;
       utterance.onerror = () => {
-        setSpeechStatus('系统朗读被浏览器中断，请再点一次朗读按钮。');
+        setReadStatus('系统朗读被浏览器中断，请再点一次朗读按钮。');
         scheduleNext();
       };
       SpeechSynthesis.resume?.();
       SpeechSynthesis.speak(utterance);
     };
 
-    setSpeechStatus('正在启动例句朗读。');
+    setReadStatus('正在启动例句朗读。');
     if (isAppleMobileBrowser) {
       SpeechSynthesis.resume?.();
       speakChunk(0);
@@ -513,7 +515,7 @@ function App() {
   const playExample = (text, options = {}) => {
     const audioUrl = exampleAudioManifest[text];
     if (!audioUrl) {
-      setSpeechStatus('使用系统备用朗读。');
+      setReadStatus('使用系统备用朗读。');
       speak(text, options);
       return;
     }
@@ -521,18 +523,18 @@ function App() {
     stopSpeaking();
     const audio = new Audio(audioUrl);
     audioRef.current = audio;
-    setSpeechStatus('正在播放预生成例句音频。');
+    setReadStatus('正在播放预生成例句音频。');
     audio.onended = () => {
       if (audioRef.current === audio) audioRef.current = null;
-      setSpeechStatus('例句朗读完成。');
+      setReadStatus('例句朗读完成。');
     };
     audio.onerror = () => {
       if (audioRef.current === audio) audioRef.current = null;
-      setSpeechStatus('预生成音频不可用，改用系统备用朗读。');
+      setReadStatus('预生成音频不可用，改用系统备用朗读。');
       speak(text, options);
     };
     audio.play().catch(() => {
-      setSpeechStatus('预生成音频未能播放，改用系统备用朗读。');
+      setReadStatus('预生成音频未能播放，改用系统备用朗读。');
       speak(text, options);
     });
   };
@@ -919,6 +921,7 @@ function App() {
               listening={listening}
               speechScore={speechScore}
               speechStatus={speechStatus}
+              readStatus={readStatus}
               spokenText={spokenText}
               startListening={startListening}
               stopListening={stopListening}
@@ -960,6 +963,7 @@ function RepeatPractice({
   listening,
   speechScore,
   speechStatus,
+  readStatus,
   spokenText,
   startListening,
   stopListening,
@@ -991,6 +995,7 @@ function RepeatPractice({
           {listening ? '停止识别' : '开始跟读'}
         </button>
         {!SpeechRecognition && <p className="hint">当前浏览器不支持语音识别，建议用 Chrome 打开。</p>}
+        {readStatus && <p className="hint neutral">{readStatus}</p>}
       </div>
 
       <div className="result-panel">
