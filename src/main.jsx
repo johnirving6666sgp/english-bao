@@ -20,6 +20,7 @@ import { vocabChapters } from './vocabData';
 import './styles.css';
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+const SpeechSynthesis = window.speechSynthesis || null;
 const REVIEW_STORAGE_KEY = 'english-bao-recent-study-v1';
 const PROGRESS_STORAGE_KEY = 'english-bao-last-progress-v1';
 const VOICE_STORAGE_KEY = 'english-bao-voice-v1';
@@ -235,7 +236,6 @@ function App() {
   const [speechScore, setSpeechScore] = useState(null);
   const [speechStatus, setSpeechStatus] = useState('');
   const [listening, setListening] = useState(false);
-  const [voiceReady, setVoiceReady] = useState(false);
   const [voices, setVoices] = useState([]);
   const [selectedVoiceName, setSelectedVoiceName] = useState(loadVoiceName);
   const [scores, setScores] = useState({});
@@ -304,16 +304,17 @@ function App() {
 
   useEffect(() => {
     const syncVoices = () => {
-      const nextVoices = window.speechSynthesis.getVoices().filter((voice) => voice.lang.startsWith('en'));
+      if (!SpeechSynthesis) return;
+      const nextVoices = SpeechSynthesis.getVoices().filter((voice) => voice.lang.startsWith('en'));
       setVoices(nextVoices);
-      setVoiceReady(nextVoices.length > 0);
-      if (!selectedVoiceName && nextVoices.length) {
+      const selectedVoiceStillExists = nextVoices.some((voice) => voice.name === selectedVoiceName);
+      if (nextVoices.length && (!selectedVoiceName || !selectedVoiceStillExists)) {
         setSelectedVoiceName(pickEnglishVoice(nextVoices)?.name || nextVoices[0].name);
       }
     };
     syncVoices();
-    window.speechSynthesis.addEventListener('voiceschanged', syncVoices);
-    return () => window.speechSynthesis.removeEventListener('voiceschanged', syncVoices);
+    SpeechSynthesis?.addEventListener('voiceschanged', syncVoices);
+    return () => SpeechSynthesis?.removeEventListener('voiceschanged', syncVoices);
   }, [selectedVoiceName]);
 
   useEffect(() => {
@@ -399,7 +400,7 @@ function App() {
     null;
 
   const activeVoice = () => {
-    const browserVoices = voices.length ? voices : window.speechSynthesis.getVoices();
+    const browserVoices = voices.length ? voices : SpeechSynthesis?.getVoices().filter((voice) => voice.lang.startsWith('en')) ?? [];
     return browserVoices.find((voice) => voice.name === selectedVoiceName) || pickEnglishVoice(browserVoices);
   };
 
@@ -431,10 +432,11 @@ function App() {
       audioRef.current.currentTime = 0;
       audioRef.current = null;
     }
-    window.speechSynthesis.cancel();
+    SpeechSynthesis?.cancel();
   };
 
   const speak = (text, options = {}) => {
+    if (!SpeechSynthesis) return;
     const config = typeof options === 'number' ? { rate: options } : options;
     const modeName = config.mode ?? 'guided';
     stopSpeaking();
@@ -472,7 +474,8 @@ function App() {
       };
       utterance.onend = scheduleNext;
       utterance.onerror = scheduleNext;
-      window.speechSynthesis.speak(utterance);
+      SpeechSynthesis.resume?.();
+      SpeechSynthesis.speak(utterance);
     };
 
     speakChunk(0);
@@ -497,8 +500,6 @@ function App() {
     };
     audio.play().catch(() => speak(text, options));
   };
-
-  const canPlayExample = (text) => Boolean(exampleAudioManifest[text]) || voiceReady;
 
   const moveTo = (nextIndex) => {
     setIndex((nextIndex + filteredEntries.length) % filteredEntries.length);
@@ -842,6 +843,7 @@ function App() {
         <section className="voice-panel">
           <label htmlFor="voice">发音声音</label>
           <select id="voice" value={selectedVoiceName} onChange={(event) => setSelectedVoiceName(event.target.value)}>
+            {!voices.length && <option value="">自动选择英语语音</option>}
             {voices.map((voice) => (
               <option key={`${voice.name}-${voice.lang}`} value={voice.name}>
                 {voice.name} · {voice.lang}
@@ -885,7 +887,6 @@ function App() {
               startListening={startListening}
               stopListening={stopListening}
               playExample={playExample}
-              canPlayExample={canPlayExample(current.example)}
             />
           ) : (
             <RecallPractice
@@ -926,8 +927,7 @@ function RepeatPractice({
   spokenText,
   startListening,
   stopListening,
-  playExample,
-  canPlayExample
+  playExample
 }) {
   const scoreLabel =
     speechScore === null ? '等待跟读' : speechScore >= 85 ? '很接近' : speechScore >= 60 ? '可以再读慢一点' : '建议重读';
@@ -946,7 +946,7 @@ function RepeatPractice({
       </div>
 
       <div className="repeat-controls">
-        <button className="listen-button selected" onClick={() => playExample(current.example, { mode: 'guided' })} disabled={!canPlayExample}>
+        <button className="listen-button selected" onClick={() => playExample(current.example, { mode: 'guided' })}>
           <Volume2 size={22} />
           自然带读例句
         </button>
