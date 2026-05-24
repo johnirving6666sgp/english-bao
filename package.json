@@ -8,6 +8,7 @@
     "build": "vite build",
     "audio:examples": "node scripts/generate-example-audio.mjs",
     "audio:examples:dry": "node scripts/generate-example-audio.mjs --dry-run --limit=5",
+    "audio:normalize": "node scripts/normalize-example-audio.mjs",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {

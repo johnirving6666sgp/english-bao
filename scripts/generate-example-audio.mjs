@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { normalizeAudioFile } from './audio-utils.mjs';
 import { vocabChapters } from '../src/vocabData.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -139,6 +140,7 @@ const main = async () => {
     console.log(`[tts] ${generated + 1}/${targets.length} ${entry.term}: ${entry.example}`);
     const audio = await generateSpeech(entry.example);
     await writeFile(filePath, audio);
+    await normalizeAudioFile(filePath);
     generated += 1;
   }
 
