@@ -416,7 +416,7 @@ function App() {
   const makeUtterance = (text, voice, { rate, pitch }) => {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = voice?.lang || 'en-US';
-    utterance.voice = voice;
+    if (voice) utterance.voice = voice;
     utterance.rate = rate;
     utterance.pitch = pitch;
     utterance.volume = 1;
@@ -436,7 +436,10 @@ function App() {
   };
 
   const speak = (text, options = {}) => {
-    if (!SpeechSynthesis) return;
+    if (!SpeechSynthesis) {
+      setSpeechStatus('当前浏览器没有可用的系统朗读能力。');
+      return;
+    }
     const config = typeof options === 'number' ? { rate: options } : options;
     const modeName = config.mode ?? 'guided';
     stopSpeaking();
@@ -464,7 +467,10 @@ function App() {
 
     const speakChunk = (chunkIndex) => {
       if (runId !== speechRunRef.current) return;
-      if (chunkIndex >= chunks.length) return;
+      if (chunkIndex >= chunks.length) {
+        setSpeechStatus('例句朗读完成。');
+        return;
+      }
       const item = chunks[chunkIndex];
       const utterance = makeUtterance(item.text, voice, item);
       const scheduleNext = () => {
@@ -472,18 +478,28 @@ function App() {
         const timer = window.setTimeout(() => speakChunk(chunkIndex + 1), item.pause);
         speechTimersRef.current.push(timer);
       };
+      utterance.onstart = () => setSpeechStatus('正在播放例句朗读。');
       utterance.onend = scheduleNext;
-      utterance.onerror = scheduleNext;
+      utterance.onerror = () => {
+        setSpeechStatus('系统朗读被浏览器中断，请再点一次朗读按钮。');
+        scheduleNext();
+      };
       SpeechSynthesis.resume?.();
       SpeechSynthesis.speak(utterance);
     };
 
-    speakChunk(0);
+    setSpeechStatus('正在启动例句朗读。');
+    const starter = window.setTimeout(() => {
+      SpeechSynthesis.resume?.();
+      speakChunk(0);
+    }, 120);
+    speechTimersRef.current.push(starter);
   };
 
   const playExample = (text, options = {}) => {
     const audioUrl = exampleAudioManifest[text];
     if (!audioUrl) {
+      setSpeechStatus('使用系统备用朗读。');
       speak(text, options);
       return;
     }
@@ -491,14 +507,20 @@ function App() {
     stopSpeaking();
     const audio = new Audio(audioUrl);
     audioRef.current = audio;
+    setSpeechStatus('正在播放预生成例句音频。');
     audio.onended = () => {
       if (audioRef.current === audio) audioRef.current = null;
+      setSpeechStatus('例句朗读完成。');
     };
     audio.onerror = () => {
       if (audioRef.current === audio) audioRef.current = null;
+      setSpeechStatus('预生成音频不可用，改用系统备用朗读。');
       speak(text, options);
     };
-    audio.play().catch(() => speak(text, options));
+    audio.play().catch(() => {
+      setSpeechStatus('预生成音频未能播放，改用系统备用朗读。');
+      speak(text, options);
+    });
   };
 
   const moveTo = (nextIndex) => {
