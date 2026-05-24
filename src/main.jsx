@@ -745,7 +745,7 @@ function App() {
           </div>
         </div>
 
-        <div className="field">
+        <div className="field chapter-field">
           <label htmlFor="chapter">章节</label>
           <select
             id="chapter"
@@ -766,7 +766,7 @@ function App() {
           </select>
         </div>
 
-        <div className="field">
+        <div className="field section-field">
           <label htmlFor="section">主题</label>
           <select
             id="section"
@@ -786,7 +786,7 @@ function App() {
           </select>
         </div>
 
-        <div className="field">
+        <div className="field search-field">
           <label htmlFor="search">搜索</label>
           <div className="search-box">
             <Search size={17} />
