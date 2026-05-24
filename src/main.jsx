@@ -583,30 +583,15 @@ function App() {
     }
   };
 
-  const startListening = async () => {
+  const startListening = () => {
     if (!SpeechRecognition || listening) return;
     stoppingRecognitionRef.current = false;
     const stoppedAudio = stopSpeaking();
     setSpokenText('');
     setSpeechScore(null);
-    setSpeechStatus('正在准备麦克风。');
+    setSpeechStatus(stoppedAudio ? '朗读已停止，正在启动跟读识别。' : '正在启动跟读识别。');
+    if (stoppedAudio) setReadStatus('朗读已停止，可以开始跟读。');
 
-    if (stoppedAudio) {
-      setReadStatus('朗读已停止，正在切换到跟读识别。');
-      await new Promise((resolve) => window.setTimeout(resolve, isAppleMobileBrowser ? 520 : 240));
-    }
-
-    try {
-      if (navigator.mediaDevices?.getUserMedia) {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach((track) => track.stop());
-      }
-    } catch {
-      setSpeechStatus('麦克风权限不可用，请在浏览器地址栏允许 localhost 使用麦克风。');
-      return;
-    }
-
-    await new Promise((resolve) => window.setTimeout(resolve, 180));
     const recognition = new SpeechRecognition();
     let latestScore = null;
     let recorded = false;
@@ -653,11 +638,20 @@ function App() {
     };
     recognition.onend = () => {
       setListening(false);
+      recognitionRef.current = null;
       if (!recorded && latestScore !== null) recordScore(latestScore);
       if (latestScore === null) setSpeechStatus((status) => status || '识别已结束，但没有收到文本。');
     };
     recognitionRef.current = recognition;
-    recognition.start();
+    try {
+      recognition.start();
+      setListening(true);
+      setSpeechStatus('正在听，请跟读例句。');
+    } catch (error) {
+      recognitionRef.current = null;
+      setListening(false);
+      setSpeechStatus(`语音识别启动失败：${error.message || '请刷新页面后再试。'}`);
+    }
   };
 
   const stopListening = () => {
