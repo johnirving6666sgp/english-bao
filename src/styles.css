@@ -546,7 +546,8 @@ h1 {
 }
 
 .result-panel > div,
-.feedback {
+.feedback,
+.coach-note {
   padding: 20px;
   border: 1px solid #d9e1ea;
   border-radius: 8px;
@@ -566,6 +567,59 @@ h1 {
   color: #667085;
   font-size: 14px;
   line-height: 1.4;
+}
+
+.coach-note {
+  border-color: #d7c8ff;
+  background: #fbf8ff;
+}
+
+.coach-note.strong {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.coach-note.steady {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.coach-note.focus {
+  border-color: #fed7aa;
+  background: #fff7ed;
+}
+
+.coach-note span {
+  display: block;
+  margin-bottom: 8px;
+  color: #6d4bb5;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.coach-note.strong span {
+  color: #237a4b;
+}
+
+.coach-note.steady span {
+  color: #30628e;
+}
+
+.coach-note.focus span {
+  color: #b45309;
+}
+
+.coach-note strong {
+  display: block;
+  color: #182230;
+  font-size: 19px;
+  line-height: 1.45;
+}
+
+.coach-note p {
+  margin: 8px 0 0;
+  color: #475467;
+  line-height: 1.5;
 }
 
 .score-meter {

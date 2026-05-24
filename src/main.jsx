@@ -79,6 +79,65 @@ const encouragementFor = (score) => {
   return '这一轮已经完成，先把卡住的词标出来，下一次从这些词开始会更有效。';
 };
 
+const getCoachTone = (score) => {
+  if (score === null) return 'ready';
+  if (score >= 90) return 'strong';
+  if (score >= 75) return 'steady';
+  return 'focus';
+};
+
+const getRepeatCoach = (score, entry) => {
+  if (score === null) {
+    return {
+      title: '陪练提示',
+      message: '先听一遍自然带读，再跟读。重点不是快，是把每个语块读清楚。',
+      tip: `今天这张卡的核心词是 ${entry.term}。`
+    };
+  }
+  if (score >= 90) {
+    return {
+      title: '这一句很稳',
+      message: '识别结果已经很接近原句。下一遍可以试着更自然地连起来，不要一个词一个词断开。',
+      tip: `保留这个节奏，${entry.term} 已经进入可输出状态。`
+    };
+  }
+  if (score >= 75) {
+    return {
+      title: '已经接近了',
+      message: '整体方向对了。再跟读一遍时，把重音放在句子的关键词上，尾音收清楚。',
+      tip: `可以特别留意 ${entry.term} 在句子里的位置。`
+    };
+  }
+  return {
+    title: '这句值得慢练',
+    message: '先不用追求完整复现。把例句拆成两三段，每段跟读清楚后再连起来。',
+    tip: '点击自然带读例句，听完一个语块就暂停在脑子里复述。'
+  };
+};
+
+const getRecallCoach = (score, entry, expression) => {
+  const usesTerm = normalize(expression).includes(normalize(entry.term));
+  if (score >= 90 && usesTerm) {
+    return {
+      title: '表达很到位',
+      message: '你已经把中文意思转成了完整英文表达，而且用上了目标词。',
+      tip: '下一次可以尝试换一个主语或场景，让这个词真正变成自己的表达。'
+    };
+  }
+  if (score >= 75) {
+    return {
+      title: '句子骨架成立',
+      message: usesTerm ? '目标词已经用上了，下一步可以让句子更自然。' : '句子基本成形了，下一步要主动把目标词放进去。',
+      tip: `参考原句时，留意 ${entry.term} 前后搭配了哪些词。`
+    };
+  }
+  return {
+    title: '先抓核心意思',
+    message: '这一步的目标是把中文意思说出来，不必一开始就追求漂亮。',
+    tip: `先写一个包含 ${entry.term} 的简单句，再对照原例句升级。`
+  };
+};
+
 const polishedExampleTranslations = {
   'The terrain in this region is extremely rugged, making it difficult to build roads.':
     '这个地区的地形非常崎岖，所以很难修建道路。',
@@ -543,7 +602,9 @@ function App() {
       chapterTitle: current.chapterTitle,
       sectionTitle: current.sectionTitle,
       term: current.term,
-      mode
+      mode,
+      sectionDone,
+      sectionTotal: sectionEntries.length
     });
   };
 
@@ -841,6 +902,8 @@ function RepeatPractice({
 }) {
   const scoreLabel =
     speechScore === null ? '等待跟读' : speechScore >= 85 ? '很接近' : speechScore >= 60 ? '可以再读慢一点' : '建议重读';
+  const coach = getRepeatCoach(speechScore, current);
+  const coachTone = getCoachTone(speechScore);
 
   return (
     <div className="repeat-layout">
@@ -876,12 +939,17 @@ function RepeatPractice({
           <strong>{speechScore === null ? '--' : `${speechScore}%`}</strong>
         </div>
       </div>
+
+      <CoachNote tone={coachTone} coach={coach} />
     </div>
   );
 }
 
 function SessionSummary({ summary, onClose }) {
   const modeLabel = summary.mode === 'repeat' ? '例句跟读' : '造句表达';
+  const progressText = summary.sectionTotal
+    ? `这个小章节目前完成 ${summary.sectionDone} / ${summary.sectionTotal}。`
+    : '';
 
   return (
     <section className="session-summary">
@@ -890,13 +958,23 @@ function SessionSummary({ summary, onClose }) {
         <strong>今天完成 {summary.studiedCount} 个词的学习记录</strong>
         <p>
           已保存到 {summary.chapterTitle} / {summary.sectionTitle}，下次进入会从“{summary.term}”附近继续。
-          复习篮里现在有 {summary.reviewCount} 个词，适合明天先快速过一遍。
+          上次学习清单里有 {summary.reviewCount} 个词，适合明天先快速过一遍。{progressText}
         </p>
-        <em>{modeLabel}这一轮先收住，今天的输入已经够扎实了。</em>
+        <em>{modeLabel}这一轮先收住。今天这组词已经在脑子里留了痕，明天从复习清单热身就很好。</em>
       </div>
       <button className="summary-close" onClick={onClose}>
         知道了
       </button>
+    </section>
+  );
+}
+
+function CoachNote({ tone, coach }) {
+  return (
+    <section className={`coach-note ${tone}`}>
+      <span>{coach.title}</span>
+      <strong>{coach.message}</strong>
+      <p>{coach.tip}</p>
     </section>
   );
 }
@@ -961,6 +1039,9 @@ function RecallPractice({
   submitted,
   submitExpression
 }) {
+  const coach = getRecallCoach(expressionScore, current, englishExpression);
+  const coachTone = getCoachTone(submitted ? expressionScore : null);
+
   return (
     <div className="recall-layout">
       <div className="prompt-panel">
@@ -1012,6 +1093,8 @@ function RecallPractice({
           </p>
         </div>
       )}
+
+      {submitted && <CoachNote tone={coachTone} coach={coach} />}
     </div>
   );
 }
