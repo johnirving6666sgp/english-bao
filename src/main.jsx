@@ -239,6 +239,7 @@ function App() {
   const [speechScore, setSpeechScore] = useState(null);
   const [speechStatus, setSpeechStatus] = useState('');
   const [readStatus, setReadStatus] = useState('');
+  const [readPlaying, setReadPlaying] = useState(false);
   const [listening, setListening] = useState(false);
   const [voices, setVoices] = useState([]);
   const [selectedVoiceName, setSelectedVoiceName] = useState(loadVoiceName);
@@ -254,6 +255,7 @@ function App() {
   const stoppingRecognitionRef = useRef(false);
   const speechRunRef = useRef(0);
   const speechTimersRef = useRef([]);
+  const recognitionTimersRef = useRef([]);
   const audioRef = useRef(null);
   const utteranceRef = useRef(null);
 
@@ -352,12 +354,24 @@ function App() {
   }
 
   function resetCardState() {
+    stopSpeaking();
+    clearRecognitionTimers();
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.abort();
+      } catch {
+        // Ignore stale browser recognition handles.
+      }
+      recognitionRef.current = null;
+    }
+    setListening(false);
     setEnglishExpression('');
     setSubmitted(false);
     setSpokenText('');
     setSpeechScore(null);
     setSpeechStatus('');
     setReadStatus('');
+    setReadPlaying(false);
   }
 
   const rememberDailyStudy = (entry) => {
@@ -429,11 +443,17 @@ function App() {
     return utterance;
   };
 
+  const clearRecognitionTimers = () => {
+    recognitionTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    recognitionTimersRef.current = [];
+  };
+
   const stopSpeaking = () => {
     speechRunRef.current += 1;
     speechTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     speechTimersRef.current = [];
     utteranceRef.current = null;
+    setReadPlaying(false);
     let stoppedAudio = false;
     if (audioRef.current) {
       const audio = audioRef.current;
@@ -488,6 +508,7 @@ function App() {
     const speakChunk = (chunkIndex) => {
       if (runId !== speechRunRef.current) return;
       if (chunkIndex >= chunks.length) {
+        setReadPlaying(false);
         setReadStatus('例句朗读完成。');
         return;
       }
@@ -500,9 +521,13 @@ function App() {
         const timer = window.setTimeout(() => speakChunk(chunkIndex + 1), item.pause);
         speechTimersRef.current.push(timer);
       };
-      utterance.onstart = () => setReadStatus('正在播放例句朗读。');
+      utterance.onstart = () => {
+        setReadPlaying(true);
+        setReadStatus('正在播放例句朗读。');
+      };
       utterance.onend = scheduleNext;
       utterance.onerror = () => {
+        if (chunkIndex >= chunks.length - 1) setReadPlaying(false);
         setReadStatus('系统朗读被浏览器中断，请再点一次朗读按钮。');
         scheduleNext();
       };
@@ -535,17 +560,22 @@ function App() {
     stopSpeaking();
     const audio = new Audio(audioUrl);
     audioRef.current = audio;
+    setReadPlaying(true);
     setReadStatus('正在播放预生成例句音频。');
     audio.onended = () => {
       if (audioRef.current === audio) audioRef.current = null;
+      setReadPlaying(false);
       setReadStatus('例句朗读完成。');
     };
     audio.onerror = () => {
       if (audioRef.current === audio) audioRef.current = null;
+      setReadPlaying(false);
       setReadStatus('预生成音频不可用，改用系统备用朗读。');
       speak(text, options);
     };
     audio.play().catch(() => {
+      if (audioRef.current === audio) audioRef.current = null;
+      setReadPlaying(false);
       setReadStatus('预生成音频未能播放，改用系统备用朗读。');
       speak(text, options);
     });
@@ -585,12 +615,24 @@ function App() {
 
   const startListening = () => {
     if (!SpeechRecognition || listening) return;
+    if (readPlaying) {
+      setSpeechStatus('带读还在播放，等它结束后再开始跟读。');
+      return;
+    }
     stoppingRecognitionRef.current = false;
-    const stoppedAudio = stopSpeaking();
+    clearRecognitionTimers();
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.abort();
+      } catch {
+        // Ignore stale browser recognition handles.
+      }
+      recognitionRef.current = null;
+    }
+    stopSpeaking();
     setSpokenText('');
     setSpeechScore(null);
-    setSpeechStatus(stoppedAudio ? '朗读已停止，正在启动跟读识别。' : '正在启动跟读识别。');
-    if (stoppedAudio) setReadStatus('朗读已停止，可以开始跟读。');
+    setSpeechStatus('正在启动跟读识别。');
 
     const recognition = new SpeechRecognition();
     let latestScore = null;
@@ -602,8 +644,15 @@ function App() {
     recognition.onstart = () => {
       setListening(true);
       setSpeechStatus('正在听，请跟读例句。');
+      const noResultTimer = window.setTimeout(() => {
+        if (recognitionRef.current === recognition && latestScore === null) {
+          setSpeechStatus('还没有识别到内容。请靠近麦克风，按正常音量读完整句。');
+        }
+      }, 7000);
+      recognitionTimersRef.current.push(noResultTimer);
     };
     recognition.onresult = (event) => {
+      clearRecognitionTimers();
       const transcript = Array.from(event.results)
         .map((result) => result[0]?.transcript ?? '')
         .join(' ')
@@ -621,6 +670,7 @@ function App() {
     };
     recognition.onnomatch = () => setSpeechStatus('没有匹配到清晰语音，请离麦克风近一点再试。');
     recognition.onerror = (event) => {
+      clearRecognitionTimers();
       if (event.error === 'aborted' && stoppingRecognitionRef.current) {
         setSpeechStatus('已停止跟读识别。');
         setListening(false);
@@ -637,6 +687,7 @@ function App() {
       setListening(false);
     };
     recognition.onend = () => {
+      clearRecognitionTimers();
       setListening(false);
       recognitionRef.current = null;
       if (!recorded && latestScore !== null) recordScore(latestScore);
@@ -656,6 +707,7 @@ function App() {
 
   const stopListening = () => {
     stoppingRecognitionRef.current = true;
+    clearRecognitionTimers();
     recognitionRef.current?.stop();
     setListening(false);
   };
@@ -933,6 +985,7 @@ function App() {
               speechScore={speechScore}
               speechStatus={speechStatus}
               readStatus={readStatus}
+              readPlaying={readPlaying}
               spokenText={spokenText}
               startListening={startListening}
               stopListening={stopListening}
@@ -975,13 +1028,14 @@ function RepeatPractice({
   speechScore,
   speechStatus,
   readStatus,
+  readPlaying,
   spokenText,
   startListening,
   stopListening,
   playExample
 }) {
   const scoreLabel =
-    speechScore === null ? '等待跟读' : speechScore >= 85 ? '很接近' : speechScore >= 60 ? '可以再读慢一点' : '建议重读';
+    listening ? '正在跟读' : speechScore === null ? '等待跟读' : speechScore >= 85 ? '很接近' : speechScore >= 60 ? '可以再读慢一点' : '建议重读';
   const coach = getRepeatCoach(speechScore, current);
   const coachTone = getCoachTone(speechScore);
 
@@ -997,13 +1051,17 @@ function RepeatPractice({
       </div>
 
       <div className="repeat-controls">
-        <button className="listen-button selected" onClick={() => playExample(current.example, { mode: 'guided' })}>
+        <button className="listen-button selected" onClick={() => playExample(current.example, { mode: 'guided' })} disabled={listening}>
           <Volume2 size={22} />
-          自然带读例句
+          {listening ? '跟读中' : '自然带读例句'}
         </button>
-        <button className={`record-button ${listening ? 'recording' : ''}`} onClick={listening ? stopListening : startListening} disabled={!SpeechRecognition}>
+        <button
+          className={`record-button ${listening ? 'recording' : ''}`}
+          onClick={listening ? stopListening : startListening}
+          disabled={!SpeechRecognition || readPlaying}
+        >
           {listening ? <MicOff size={22} /> : <Mic size={22} />}
-          {listening ? '停止识别' : '开始跟读'}
+          {listening ? '停止识别' : readPlaying ? '等待带读结束' : '开始跟读'}
         </button>
         {!SpeechRecognition && <p className="hint">当前浏览器不支持语音识别，建议用 Chrome 打开。</p>}
         {readStatus && <p className="hint neutral">{readStatus}</p>}
