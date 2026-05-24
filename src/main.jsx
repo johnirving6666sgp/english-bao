@@ -21,6 +21,9 @@ import './styles.css';
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
 const SpeechSynthesis = window.speechSynthesis || null;
+const isAppleMobileBrowser =
+  /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const REVIEW_STORAGE_KEY = 'english-bao-recent-study-v1';
 const PROGRESS_STORAGE_KEY = 'english-bao-last-progress-v1';
 const VOICE_STORAGE_KEY = 'english-bao-voice-v1';
@@ -251,6 +254,7 @@ function App() {
   const speechRunRef = useRef(0);
   const speechTimersRef = useRef([]);
   const audioRef = useRef(null);
+  const utteranceRef = useRef(null);
 
   const selectedChapter = vocabChapters.find((chapter) => chapter.id === chapterId);
   const sections = selectedChapter?.sections ?? [];
@@ -427,6 +431,7 @@ function App() {
     speechRunRef.current += 1;
     speechTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     speechTimersRef.current = [];
+    utteranceRef.current = null;
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
@@ -445,8 +450,9 @@ function App() {
     stopSpeaking();
     const runId = speechRunRef.current;
     const voice = activeVoice();
-    const chunks =
-      modeName === 'human'
+    const chunks = isAppleMobileBrowser
+      ? [{ text, rate: config.rate ?? 0.72, pitch: 1, pause: 0 }]
+      : modeName === 'human'
         ? [{ text, rate: config.rate ?? 0.82, pitch: 1, pause: 0 }]
         : modeName === 'guided'
         ? [
@@ -473,8 +479,10 @@ function App() {
       }
       const item = chunks[chunkIndex];
       const utterance = makeUtterance(item.text, voice, item);
+      utteranceRef.current = utterance;
       const scheduleNext = () => {
         if (runId !== speechRunRef.current) return;
+        utteranceRef.current = null;
         const timer = window.setTimeout(() => speakChunk(chunkIndex + 1), item.pause);
         speechTimersRef.current.push(timer);
       };
@@ -489,6 +497,12 @@ function App() {
     };
 
     setSpeechStatus('正在启动例句朗读。');
+    if (isAppleMobileBrowser) {
+      SpeechSynthesis.resume?.();
+      speakChunk(0);
+      return;
+    }
+
     const starter = window.setTimeout(() => {
       SpeechSynthesis.resume?.();
       speakChunk(0);
