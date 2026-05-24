@@ -642,16 +642,26 @@ function App() {
     recognition.interimResults = true;
     recognition.maxAlternatives = 1;
     recognition.onstart = () => {
+      if (recognitionRef.current !== recognition) return;
       setListening(true);
       setSpeechStatus('正在听，请跟读例句。');
       const noResultTimer = window.setTimeout(() => {
         if (recognitionRef.current === recognition && latestScore === null) {
-          setSpeechStatus('还没有识别到内容。请靠近麦克风，按正常音量读完整句。');
+          setSpeechStatus('还没有识别到内容，本次跟读已结束。再点开始跟读即可。');
+          setListening(false);
+          recognitionRef.current = null;
+          clearRecognitionTimers();
+          try {
+            recognition.abort();
+          } catch {
+            // Mobile browsers can throw when aborting a stale recognition session.
+          }
         }
-      }, 7000);
+      }, 9000);
       recognitionTimersRef.current.push(noResultTimer);
     };
     recognition.onresult = (event) => {
+      if (recognitionRef.current !== recognition) return;
       clearRecognitionTimers();
       const transcript = Array.from(event.results)
         .map((result) => result[0]?.transcript ?? '')
@@ -670,7 +680,9 @@ function App() {
     };
     recognition.onnomatch = () => setSpeechStatus('没有匹配到清晰语音，请离麦克风近一点再试。');
     recognition.onerror = (event) => {
+      if (recognitionRef.current !== recognition) return;
       clearRecognitionTimers();
+      recognitionRef.current = null;
       if (event.error === 'aborted' && stoppingRecognitionRef.current) {
         setSpeechStatus('已停止跟读识别。');
         setListening(false);
@@ -687,6 +699,7 @@ function App() {
       setListening(false);
     };
     recognition.onend = () => {
+      if (recognitionRef.current !== recognition) return;
       clearRecognitionTimers();
       setListening(false);
       recognitionRef.current = null;
