@@ -14,6 +14,7 @@ import {
   Sparkles,
   Volume2
 } from 'lucide-react';
+import { exampleAudioManifest } from './exampleAudioManifest';
 import { generatedExampleTranslations } from './exampleTranslations';
 import { vocabChapters } from './vocabData';
 import './styles.css';
@@ -249,6 +250,7 @@ function App() {
   const stoppingRecognitionRef = useRef(false);
   const speechRunRef = useRef(0);
   const speechTimersRef = useRef([]);
+  const audioRef = useRef(null);
 
   const selectedChapter = vocabChapters.find((chapter) => chapter.id === chapterId);
   const sections = selectedChapter?.sections ?? [];
@@ -424,6 +426,11 @@ function App() {
     speechRunRef.current += 1;
     speechTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     speechTimersRef.current = [];
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current = null;
+    }
     window.speechSynthesis.cancel();
   };
 
@@ -470,6 +477,28 @@ function App() {
 
     speakChunk(0);
   };
+
+  const playExample = (text, options = {}) => {
+    const audioUrl = exampleAudioManifest[text];
+    if (!audioUrl) {
+      speak(text, options);
+      return;
+    }
+
+    stopSpeaking();
+    const audio = new Audio(audioUrl);
+    audioRef.current = audio;
+    audio.onended = () => {
+      if (audioRef.current === audio) audioRef.current = null;
+    };
+    audio.onerror = () => {
+      if (audioRef.current === audio) audioRef.current = null;
+      speak(text, options);
+    };
+    audio.play().catch(() => speak(text, options));
+  };
+
+  const canPlayExample = (text) => Boolean(exampleAudioManifest[text]) || voiceReady;
 
   const moveTo = (nextIndex) => {
     setIndex((nextIndex + filteredEntries.length) % filteredEntries.length);
@@ -819,7 +848,7 @@ function App() {
               </option>
             ))}
           </select>
-          <span>更接近真人的发音取决于当前设备可用语音；iPhone/Mac 上建议选 Samantha、Ava、Nicky、Alex 或 Google US English。</span>
+          <span>优先播放预生成 AI 例句音频；没有音频时使用当前设备语音备用。iPhone/Mac 上备用语音建议选 Samantha、Ava、Nicky、Alex 或 Google US English。</span>
         </section>
 
         <section className="practice-card">
@@ -844,7 +873,7 @@ function App() {
               total={filteredEntries.length}
               moveTo={moveTo}
               rememberStudy={rememberStudy}
-              speak={speak}
+              playExample={playExample}
             />
           ) : mode === 'repeat' ? (
             <RepeatPractice
@@ -855,8 +884,8 @@ function App() {
               spokenText={spokenText}
               startListening={startListening}
               stopListening={stopListening}
-              speak={speak}
-              voiceReady={voiceReady}
+              playExample={playExample}
+              canPlayExample={canPlayExample(current.example)}
             />
           ) : (
             <RecallPractice
@@ -864,7 +893,7 @@ function App() {
               englishExpression={englishExpression}
               expressionScore={expressionScore}
               setEnglishExpression={setEnglishExpression}
-              speak={speak}
+              playExample={playExample}
               submitted={submitted}
               submitExpression={submitExpression}
             />
@@ -897,8 +926,8 @@ function RepeatPractice({
   spokenText,
   startListening,
   stopListening,
-  speak,
-  voiceReady
+  playExample,
+  canPlayExample
 }) {
   const scoreLabel =
     speechScore === null ? '等待跟读' : speechScore >= 85 ? '很接近' : speechScore >= 60 ? '可以再读慢一点' : '建议重读';
@@ -917,7 +946,7 @@ function RepeatPractice({
       </div>
 
       <div className="repeat-controls">
-        <button className="listen-button selected" onClick={() => speak(current.example, { mode: 'guided' })} disabled={!voiceReady}>
+        <button className="listen-button selected" onClick={() => playExample(current.example, { mode: 'guided' })} disabled={!canPlayExample}>
           <Volume2 size={22} />
           自然带读例句
         </button>
@@ -979,7 +1008,7 @@ function CoachNote({ tone, coach }) {
   );
 }
 
-function ReviewFlashcard({ current, index, total, moveTo, rememberStudy, speak }) {
+function ReviewFlashcard({ current, index, total, moveTo, rememberStudy, playExample }) {
   const [revealed, setRevealed] = useState(false);
 
   useEffect(() => {
@@ -1010,7 +1039,7 @@ function ReviewFlashcard({ current, index, total, moveTo, rememberStudy, speak }
         <div className="review-card-answer">
           <span>原例句</span>
           <p>{current.example}</p>
-          <button className="secondary-button" onClick={() => speak(current.example, { mode: 'guided' })}>
+          <button className="secondary-button" onClick={() => playExample(current.example, { mode: 'guided' })}>
             <Volume2 size={18} />
             朗读原例句
           </button>
@@ -1035,7 +1064,7 @@ function RecallPractice({
   englishExpression,
   expressionScore,
   setEnglishExpression,
-  speak,
+  playExample,
   submitted,
   submitExpression
 }) {
@@ -1079,7 +1108,7 @@ function RecallPractice({
             <span>参考分</span>
             <strong>{expressionScore}%</strong>
           </div>
-          <button className="secondary-button" onClick={() => speak(current.example, { mode: 'guided' })}>
+          <button className="secondary-button" onClick={() => playExample(current.example, { mode: 'guided' })}>
             <Volume2 size={18} />
             听原例句
           </button>
