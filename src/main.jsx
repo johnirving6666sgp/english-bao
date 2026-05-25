@@ -162,16 +162,6 @@ const getChineseExample = (entry) =>
 const getListeningDefinition = (entry) =>
   entry.englishDefinition || entry.example || `IELTS listening scene word: ${entry.term}`;
 
-const getListeningExample = (entry) =>
-  entry.example || `Please write down the word ${entry.term}.`;
-
-const blankListeningExample = (entry) => {
-  const escaped = entry.term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const pattern = new RegExp(`\\b${escaped}\\b`, 'i');
-  const example = getListeningExample(entry);
-  return pattern.test(example) ? example.replace(pattern, '______') : `______ · ${example}`;
-};
-
 const normalizeSpelling = (value) => normalize(value).replace(/\s+/g, ' ');
 
 const spellingMatches = (answer, term) => {
@@ -183,10 +173,11 @@ const spellingMatches = (answer, term) => {
 };
 
 const listeningExerciseLabels = {
-  choice: '听音选义',
-  spelling: '听写拼写',
-  sentence: '例句填空'
+  choice: '听词看义',
+  spelling: '听写拼写'
 };
+
+const validListeningExercises = new Set(Object.keys(listeningExerciseLabels));
 
 const loadReviewIds = () => {
   try {
@@ -387,6 +378,10 @@ function App() {
   useEffect(() => {
     resetListeningState();
   }, [listeningScene, listeningExercise, query, currentListening.id]);
+
+  useEffect(() => {
+    if (!validListeningExercises.has(listeningExercise)) setListeningExercise('choice');
+  }, [listeningExercise]);
 
   useEffect(() => {
     const syncVoices = () => {
@@ -675,10 +670,6 @@ function App() {
     speak(currentListening.term, { rate: 0.62, pause: 260 });
   };
 
-  const playListeningExample = () => {
-    speak(getListeningExample(currentListening), { mode: 'guided', rate: 0.62, pause: 420 });
-  };
-
   const moveTo = (nextIndex) => {
     setIndex((nextIndex + filteredEntries.length) % filteredEntries.length);
     resetCardState();
@@ -724,12 +715,8 @@ function App() {
   const submitListening = (event) => {
     event.preventDefault();
     let correct = false;
-    if (listeningExercise === 'choice') {
-      correct = listeningAnswer === currentListening.id;
-    } else if (listeningExercise === 'spelling') {
+    if (listeningExercise === 'spelling') {
       correct = spellingMatches(listeningAnswer, currentListening.term);
-    } else {
-      correct = normalize(listeningAnswer).includes(normalize(currentListening.term));
     }
     setListeningSubmitted(true);
     setListeningCorrect(correct);
@@ -994,9 +981,8 @@ function App() {
                 value={listeningExercise}
                 onChange={(event) => setListeningExercise(event.target.value)}
               >
-                <option value="choice">听音选义</option>
+                <option value="choice">听词看义</option>
                 <option value="spelling">听写拼写</option>
-                <option value="sentence">例句填空</option>
               </select>
             </div>
           </>
@@ -1218,7 +1204,6 @@ function App() {
               setAnswer={setListeningAnswer}
               submitListening={submitListening}
               playWord={playListeningWord}
-              playExample={playListeningExample}
             />
           ) : reviewCardActive ? (
             <ReviewFlashcard
@@ -1281,11 +1266,9 @@ function ListeningPractice({
   correct,
   setAnswer,
   submitListening,
-  playWord,
-  playExample
+  playWord
 }) {
   const definition = getListeningDefinition(current);
-  const example = getListeningExample(current);
 
   return (
     <div className="listening-layout">
@@ -1294,10 +1277,8 @@ function ListeningPractice({
         <strong>{listeningExerciseLabels[exercise]}</strong>
         <p>
           {exercise === 'choice'
-            ? '听单词后看这一条英文释义，确认自己是否听懂。'
-            : exercise === 'spelling'
-            ? '听单词后写出英文拼写。'
-            : '听例句后补出空缺的核心词。'}
+            ? '听单词后看英文释义，确认自己是否听懂。'
+            : '听单词后写出英文拼写。'}
         </p>
       </div>
 
@@ -1305,10 +1286,6 @@ function ListeningPractice({
         <button type="button" className="listen-button selected" onClick={playWord}>
           <Volume2 size={22} />
           播放单词
-        </button>
-        <button type="button" className="secondary-button" onClick={playExample}>
-          <Volume2 size={18} />
-          播放例句
         </button>
       </div>
 
@@ -1334,25 +1311,6 @@ function ListeningPractice({
           </label>
         )}
 
-        {exercise === 'sentence' && (
-          <>
-            <div className="sentence-blank">
-              <span>例句填空</span>
-              <strong>{blankListeningExample(current)}</strong>
-            </div>
-            <label className="listening-input">
-              <span>填写空缺词汇</span>
-              <input
-                value={answer}
-                onChange={(event) => setAnswer(event.target.value)}
-                placeholder="Fill in the missing word"
-                autoCapitalize="none"
-                required
-              />
-            </label>
-          </>
-        )}
-
         {exercise !== 'choice' && (
           <button className="primary-button" type="submit">
             提交答案
@@ -1373,10 +1331,6 @@ function ListeningPractice({
           <p>
             <b>英文释义：</b>
             {definition}
-          </p>
-          <p>
-            <b>例句：</b>
-            {example}
           </p>
           <p>
             <b>来源：</b>
