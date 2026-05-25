@@ -721,17 +721,6 @@ function App() {
     moveListeningTo(next, targetEntries, useSceneList);
   };
 
-  const getListeningChoices = () => {
-    const sameScene = listeningVocabEntries.filter((entry) => entry.scene === currentListening.scene && entry.id !== currentListening.id);
-    const pool = (sameScene.length >= 3 ? sameScene : listeningVocabEntries.filter((entry) => entry.id !== currentListening.id))
-      .filter((entry) => getListeningDefinition(entry).length > 12);
-    const distractors = pool
-      .sort((a, b) => normalize(`${currentListening.id}-${a.id}`).localeCompare(normalize(`${currentListening.id}-${b.id}`)))
-      .slice(0, 3);
-    return [currentListening, ...distractors]
-      .sort((a, b) => normalize(`${a.id}-${currentListening.term}`).localeCompare(normalize(`${b.id}-${currentListening.term}`)));
-  };
-
   const submitListening = (event) => {
     event.preventDefault();
     let correct = false;
@@ -1226,7 +1215,6 @@ function App() {
               answer={listeningAnswer}
               submitted={listeningSubmitted}
               correct={listeningCorrect}
-              choices={getListeningChoices()}
               setAnswer={setListeningAnswer}
               submitListening={submitListening}
               playWord={playListeningWord}
@@ -1291,7 +1279,6 @@ function ListeningPractice({
   answer,
   submitted,
   correct,
-  choices,
   setAnswer,
   submitListening,
   playWord,
@@ -1307,7 +1294,7 @@ function ListeningPractice({
         <strong>{listeningExerciseLabels[exercise]}</strong>
         <p>
           {exercise === 'choice'
-            ? '听单词后选择最接近的英文释义。'
+            ? '听单词后看这一条英文释义，确认自己是否听懂。'
             : exercise === 'spelling'
             ? '听单词后写出英文拼写。'
             : '听例句后补出空缺的核心词。'}
@@ -1328,19 +1315,9 @@ function ListeningPractice({
       <form className="listening-form" onSubmit={submitListening}>
         {exercise === 'choice' && (
           <div className="choice-grid">
-            {choices.map((choice) => (
-              <label key={choice.id} className={`choice-option ${answer === choice.id ? 'selected' : ''}`}>
-                <input
-                  type="radio"
-                  name="listeningChoice"
-                  value={choice.id}
-                  checked={answer === choice.id}
-                  onChange={(event) => setAnswer(event.target.value)}
-                  required
-                />
-                <span>{getListeningDefinition(choice)}</span>
-              </label>
-            ))}
+            <div className="choice-option single">
+              <span>{definition}</span>
+            </div>
           </div>
         )}
 
@@ -1376,9 +1353,11 @@ function ListeningPractice({
           </>
         )}
 
-        <button className="primary-button" type="submit">
-          提交答案
-        </button>
+        {exercise !== 'choice' && (
+          <button className="primary-button" type="submit">
+            提交答案
+          </button>
+        )}
       </form>
 
       {submitted && (

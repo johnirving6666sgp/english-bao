@@ -707,6 +707,10 @@ h1 {
   background: #eff6ff;
 }
 
+.choice-option.single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .choice-option input {
   margin-top: 4px;
 }
