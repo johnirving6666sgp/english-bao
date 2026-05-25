@@ -321,17 +321,21 @@ function App() {
     return list.length ? list : allEntries;
   }, [allEntries, chapterId, query, reviewActive, reviewSourceIds, sectionTitle]);
 
+  const sceneListeningEntries = useMemo(() => {
+    const list = listeningVocabEntries.filter((entry) => listeningScene === 'all' || entry.scene === listeningScene);
+    return list.length ? list : listeningVocabEntries;
+  }, [listeningScene]);
+
   const filteredListeningEntries = useMemo(() => {
     const keyword = normalize(query);
-    const list = listeningVocabEntries.filter((entry) => {
-      const inScene = listeningScene === 'all' || entry.scene === listeningScene;
+    const list = sceneListeningEntries.filter((entry) => {
       const inSearch =
         !keyword ||
         normalize(`${entry.term} ${entry.englishDefinition} ${entry.example} ${entry.scene}`).includes(keyword);
-      return inScene && inSearch;
+      return inSearch;
     });
-    return list.length ? list : listeningVocabEntries;
-  }, [listeningScene, query]);
+    return list.length ? list : sceneListeningEntries;
+  }, [query, sceneListeningEntries]);
 
   const current = filteredEntries[index % filteredEntries.length];
   const currentListening = filteredListeningEntries[listeningIndex % filteredListeningEntries.length];
@@ -666,10 +670,20 @@ function App() {
     resetCardState();
   };
 
-  const moveListeningTo = (nextIndex) => {
-    setListeningIndex((nextIndex + filteredListeningEntries.length) % filteredListeningEntries.length);
+  const moveListeningTo = (nextIndex, targetEntries = filteredListeningEntries, shouldClearSearch = false) => {
+    if (shouldClearSearch && query) setQuery('');
+    setListeningIndex((nextIndex + targetEntries.length) % targetEntries.length);
     resetListeningState();
     stopSpeaking();
+  };
+
+  const moveListeningBy = (step) => {
+    const useSceneList = filteredListeningEntries.length < 2 && sceneListeningEntries.length > 1;
+    const targetEntries = useSceneList ? sceneListeningEntries : filteredListeningEntries;
+    if (targetEntries.length < 2) return;
+    const currentPosition = targetEntries.findIndex((entry) => entry.id === currentListening.id);
+    const baseIndex = currentPosition >= 0 ? currentPosition : listeningIndex;
+    moveListeningTo(baseIndex + step, targetEntries, useSceneList);
   };
 
   const randomCard = () => {
@@ -680,10 +694,13 @@ function App() {
   };
 
   const randomListeningCard = () => {
-    if (filteredListeningEntries.length < 2) return;
-    let next = Math.floor(Math.random() * filteredListeningEntries.length);
-    if (next === listeningIndex) next = (next + 1) % filteredListeningEntries.length;
-    moveListeningTo(next);
+    const useSceneList = filteredListeningEntries.length < 2 && sceneListeningEntries.length > 1;
+    const targetEntries = useSceneList ? sceneListeningEntries : filteredListeningEntries;
+    if (targetEntries.length < 2) return;
+    const currentPosition = targetEntries.findIndex((entry) => entry.id === currentListening.id);
+    let next = Math.floor(Math.random() * targetEntries.length);
+    if (next === currentPosition) next = (next + 1) % targetEntries.length;
+    moveListeningTo(next, targetEntries, useSceneList);
   };
 
   const getListeningChoices = () => {
@@ -1229,14 +1246,14 @@ function App() {
           )}
 
           <div className="card-actions">
-            <button className="secondary-button" onClick={() => (mode === 'listening' ? moveListeningTo(listeningIndex - 1) : moveTo(index - 1))}>
+            <button className="secondary-button" onClick={() => (mode === 'listening' ? moveListeningBy(-1) : moveTo(index - 1))}>
               <ChevronLeft size={18} />
               上一个
             </button>
             <button className="secondary-button icon-only" aria-label="随机抽词" onClick={mode === 'listening' ? randomListeningCard : randomCard}>
               <Shuffle size={18} />
             </button>
-            <button className="primary-button" onClick={() => (mode === 'listening' ? moveListeningTo(listeningIndex + 1) : moveTo(index + 1))}>
+            <button className="primary-button" onClick={() => (mode === 'listening' ? moveListeningBy(1) : moveTo(index + 1))}>
               下一个
               <ChevronRight size={18} />
             </button>
