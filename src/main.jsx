@@ -4,6 +4,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CheckCircle2,
+  Headphones,
   Languages,
   Mic,
   MicOff,
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react';
 import { exampleAudioManifest } from './exampleAudioManifest';
 import { generatedExampleTranslations } from './exampleTranslations';
+import { listeningVocabEntries } from './listeningVocabData';
 import { vocabChapters } from './vocabData';
 import './styles.css';
 
@@ -157,6 +159,35 @@ const getChineseExample = (entry) =>
   generatedExampleTranslations[entry.example] ||
   `请用英文表达一个包含“${entry.meaning}”含义的句子，并尽量使用核心表达“${entry.term}”。`;
 
+const getListeningDefinition = (entry) =>
+  entry.englishDefinition || entry.example || `IELTS listening scene word: ${entry.term}`;
+
+const getListeningExample = (entry) =>
+  entry.example || `Please write down the word ${entry.term}.`;
+
+const blankListeningExample = (entry) => {
+  const escaped = entry.term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`\\b${escaped}\\b`, 'i');
+  const example = getListeningExample(entry);
+  return pattern.test(example) ? example.replace(pattern, '______') : `______ · ${example}`;
+};
+
+const normalizeSpelling = (value) => normalize(value).replace(/\s+/g, ' ');
+
+const spellingMatches = (answer, term) => {
+  const normalizedAnswer = normalizeSpelling(answer);
+  const accepted = [term, ...term.split(/[\/,;]/), term.replace(/\(.*?\)/g, '')]
+    .map((value) => normalizeSpelling(value))
+    .filter(Boolean);
+  return accepted.includes(normalizedAnswer);
+};
+
+const listeningExerciseLabels = {
+  choice: '听音选义',
+  spelling: '听写拼写',
+  sentence: '例句填空'
+};
+
 const loadReviewIds = () => {
   try {
     const saved = localStorage.getItem(REVIEW_STORAGE_KEY);
@@ -227,12 +258,18 @@ function App() {
   const savedProgress = useMemo(() => loadProgress(), []);
   const [chapterId, setChapterId] = useState(savedProgress.chapterId || 'all');
   const [sectionTitle, setSectionTitle] = useState(savedProgress.sectionTitle || 'all');
+  const [listeningScene, setListeningScene] = useState(savedProgress.listeningScene || 'all');
   const [query, setQuery] = useState(savedProgress.query || '');
   const [mode, setMode] = useState(savedProgress.mode || 'repeat');
   const [reviewIds, setReviewIds] = useState(loadReviewIds);
   const [reviewActive, setReviewActive] = useState(false);
   const [reviewCardActive, setReviewCardActive] = useState(false);
   const [index, setIndex] = useState(savedProgress.index || 0);
+  const [listeningIndex, setListeningIndex] = useState(savedProgress.listeningIndex || 0);
+  const [listeningExercise, setListeningExercise] = useState(savedProgress.listeningExercise || 'choice');
+  const [listeningAnswer, setListeningAnswer] = useState('');
+  const [listeningSubmitted, setListeningSubmitted] = useState(false);
+  const [listeningCorrect, setListeningCorrect] = useState(null);
   const [englishExpression, setEnglishExpression] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [spokenText, setSpokenText] = useState('');
@@ -261,6 +298,10 @@ function App() {
 
   const selectedChapter = vocabChapters.find((chapter) => chapter.id === chapterId);
   const sections = selectedChapter?.sections ?? [];
+  const listeningScenes = useMemo(
+    () => [...new Set(listeningVocabEntries.map((entry) => entry.scene).filter(Boolean))],
+    []
+  );
 
   const filteredEntries = useMemo(() => {
     if (reviewActive) {
@@ -280,7 +321,20 @@ function App() {
     return list.length ? list : allEntries;
   }, [allEntries, chapterId, query, reviewActive, reviewSourceIds, sectionTitle]);
 
+  const filteredListeningEntries = useMemo(() => {
+    const keyword = normalize(query);
+    const list = listeningVocabEntries.filter((entry) => {
+      const inScene = listeningScene === 'all' || entry.scene === listeningScene;
+      const inSearch =
+        !keyword ||
+        normalize(`${entry.term} ${entry.englishDefinition} ${entry.example} ${entry.scene}`).includes(keyword);
+      return inScene && inSearch;
+    });
+    return list.length ? list : listeningVocabEntries;
+  }, [listeningScene, query]);
+
   const current = filteredEntries[index % filteredEntries.length];
+  const currentListening = filteredListeningEntries[listeningIndex % filteredListeningEntries.length];
   const sectionEntries = useMemo(
     () =>
       allEntries.filter(
@@ -298,6 +352,10 @@ function App() {
   }, [filteredEntries.length]);
 
   useEffect(() => {
+    setListeningIndex((value) => Math.min(value, Math.max(filteredListeningEntries.length - 1, 0)));
+  }, [filteredListeningEntries.length]);
+
+  useEffect(() => {
     if (restoredProgressRef.current || !savedProgress.currentId) return;
     const savedIndex = filteredEntries.findIndex((entry) => entry.id === savedProgress.currentId);
     if (savedIndex >= 0) setIndex(savedIndex);
@@ -308,6 +366,10 @@ function App() {
     resetCardState();
     setSectionResult(null);
   }, [chapterId, sectionTitle, query, mode, reviewActive, reviewCardActive]);
+
+  useEffect(() => {
+    resetListeningState();
+  }, [listeningScene, listeningExercise, query, listeningIndex]);
 
   useEffect(() => {
     const syncVoices = () => {
@@ -332,15 +394,18 @@ function App() {
   useEffect(() => {
     if (reviewActive) return;
     saveCurrentProgress();
-  }, [chapterId, index, mode, query, reviewActive, sectionTitle]);
+  }, [chapterId, index, listeningExercise, listeningIndex, listeningScene, mode, query, reviewActive, sectionTitle]);
 
   function makeCurrentProgress() {
     return {
       chapterId,
       sectionTitle,
+      listeningScene,
       query,
       mode,
       index,
+      listeningIndex,
+      listeningExercise,
       currentId: current.id
     };
   }
@@ -372,6 +437,13 @@ function App() {
     setSpeechStatus('');
     setReadStatus('');
     setReadPlaying(false);
+  }
+
+  function resetListeningState() {
+    setListeningAnswer('');
+    setListeningSubmitted(false);
+    setListeningCorrect(null);
+    setReadStatus('');
   }
 
   const rememberDailyStudy = (entry) => {
@@ -581,9 +653,23 @@ function App() {
     });
   };
 
+  const playListeningWord = () => {
+    speak(currentListening.term, { rate: 0.62, pause: 260 });
+  };
+
+  const playListeningExample = () => {
+    speak(getListeningExample(currentListening), { mode: 'guided', rate: 0.62, pause: 420 });
+  };
+
   const moveTo = (nextIndex) => {
     setIndex((nextIndex + filteredEntries.length) % filteredEntries.length);
     resetCardState();
+  };
+
+  const moveListeningTo = (nextIndex) => {
+    setListeningIndex((nextIndex + filteredListeningEntries.length) % filteredListeningEntries.length);
+    resetListeningState();
+    stopSpeaking();
   };
 
   const randomCard = () => {
@@ -591,6 +677,38 @@ function App() {
     let next = Math.floor(Math.random() * filteredEntries.length);
     if (next === index) next = (next + 1) % filteredEntries.length;
     moveTo(next);
+  };
+
+  const randomListeningCard = () => {
+    if (filteredListeningEntries.length < 2) return;
+    let next = Math.floor(Math.random() * filteredListeningEntries.length);
+    if (next === listeningIndex) next = (next + 1) % filteredListeningEntries.length;
+    moveListeningTo(next);
+  };
+
+  const getListeningChoices = () => {
+    const sameScene = listeningVocabEntries.filter((entry) => entry.scene === currentListening.scene && entry.id !== currentListening.id);
+    const pool = (sameScene.length >= 3 ? sameScene : listeningVocabEntries.filter((entry) => entry.id !== currentListening.id))
+      .filter((entry) => getListeningDefinition(entry).length > 12);
+    const distractors = pool
+      .sort((a, b) => normalize(`${currentListening.id}-${a.id}`).localeCompare(normalize(`${currentListening.id}-${b.id}`)))
+      .slice(0, 3);
+    return [currentListening, ...distractors]
+      .sort((a, b) => normalize(`${a.id}-${currentListening.term}`).localeCompare(normalize(`${b.id}-${currentListening.term}`)));
+  };
+
+  const submitListening = (event) => {
+    event.preventDefault();
+    let correct = false;
+    if (listeningExercise === 'choice') {
+      correct = listeningAnswer === currentListening.id;
+    } else if (listeningExercise === 'spelling') {
+      correct = spellingMatches(listeningAnswer, currentListening.term);
+    } else {
+      correct = normalize(listeningAnswer).includes(normalize(currentListening.term));
+    }
+    setListeningSubmitted(true);
+    setListeningCorrect(correct);
   };
 
   const recordScore = (entryScore) => {
@@ -731,6 +849,21 @@ function App() {
     saveCurrentProgress();
 
     const date = todayKey();
+    if (mode === 'listening') {
+      setSessionSummary({
+        date,
+        studiedCount: listeningIndex + 1,
+        reviewCount: 0,
+        chapterTitle: '雅思听力场景词汇',
+        sectionTitle: currentListening.scene,
+        term: currentListening.term,
+        mode,
+        sectionDone: listeningIndex + 1,
+        sectionTotal: filteredListeningEntries.length
+      });
+      return;
+    }
+
     const baseIds = dailyStudy.date === date ? dailyStudy.ids : [];
     const ids = [current.id, ...baseIds.filter((id) => id !== current.id)];
     const nextDailyStudy = { date, ids };
@@ -810,46 +943,83 @@ function App() {
           </div>
         </div>
 
-        <div className="field chapter-field">
-          <label htmlFor="chapter">章节</label>
-          <select
-            id="chapter"
-            value={chapterId}
-            disabled={reviewActive}
-            onChange={(event) => {
-              setChapterId(event.target.value);
-              setSectionTitle('all');
-              setIndex(0);
-            }}
-          >
-            <option value="all">全部章节</option>
-            {vocabChapters.map((chapter) => (
-              <option key={chapter.id} value={chapter.id}>
-                {chapter.title}
-              </option>
-            ))}
-          </select>
-        </div>
+        {mode === 'listening' ? (
+          <>
+            <div className="field chapter-field">
+              <label htmlFor="listeningScene">听力场景</label>
+              <select
+                id="listeningScene"
+                value={listeningScene}
+                onChange={(event) => {
+                  setListeningScene(event.target.value);
+                  setListeningIndex(0);
+                }}
+              >
+                <option value="all">全部场景</option>
+                {listeningScenes.map((scene) => (
+                  <option key={scene} value={scene}>
+                    {scene}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field section-field">
+              <label htmlFor="listeningExercise">训练方式</label>
+              <select
+                id="listeningExercise"
+                value={listeningExercise}
+                onChange={(event) => setListeningExercise(event.target.value)}
+              >
+                <option value="choice">听音选义</option>
+                <option value="spelling">听写拼写</option>
+                <option value="sentence">例句填空</option>
+              </select>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="field chapter-field">
+              <label htmlFor="chapter">章节</label>
+              <select
+                id="chapter"
+                value={chapterId}
+                disabled={reviewActive}
+                onChange={(event) => {
+                  setChapterId(event.target.value);
+                  setSectionTitle('all');
+                  setIndex(0);
+                }}
+              >
+                <option value="all">全部章节</option>
+                {vocabChapters.map((chapter) => (
+                  <option key={chapter.id} value={chapter.id}>
+                    {chapter.title}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-        <div className="field section-field">
-          <label htmlFor="section">主题</label>
-          <select
-            id="section"
-            value={sectionTitle}
-            onChange={(event) => {
-              setSectionTitle(event.target.value);
-              setIndex(0);
-            }}
-            disabled={!selectedChapter || reviewActive}
-          >
-            <option value="all">全部主题</option>
-            {sections.map((section) => (
-              <option key={section.title} value={section.title}>
-                {section.title}
-              </option>
-            ))}
-          </select>
-        </div>
+            <div className="field section-field">
+              <label htmlFor="section">主题</label>
+              <select
+                id="section"
+                value={sectionTitle}
+                onChange={(event) => {
+                  setSectionTitle(event.target.value);
+                  setIndex(0);
+                }}
+                disabled={!selectedChapter || reviewActive}
+              >
+                <option value="all">全部主题</option>
+                {sections.map((section) => (
+                  <option key={section.title} value={section.title}>
+                    {section.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </>
+        )}
 
         <div className="field search-field">
           <label htmlFor="search">搜索</label>
@@ -911,11 +1081,11 @@ function App() {
         <div className="stats">
           <div>
             <span>当前词库</span>
-            <strong>{filteredEntries.length}</strong>
+            <strong>{mode === 'listening' ? filteredListeningEntries.length : filteredEntries.length}</strong>
           </div>
           <div>
             <span>总词条</span>
-            <strong>{allEntries.length}</strong>
+            <strong>{mode === 'listening' ? listeningVocabEntries.length : allEntries.length}</strong>
           </div>
         </div>
       </aside>
@@ -927,7 +1097,13 @@ function App() {
               {reviewCardActive ? 'Review Cards' : reviewActive ? 'Review Mode' : 'IELTS Vocabulary Trainer'}
             </p>
             <h1>
-              {reviewCardActive ? '复习卡速览' : mode === 'repeat' ? '慢速例句跟读' : '看中文例句，复写英文表达'}
+              {reviewCardActive
+                ? '复习卡速览'
+                : mode === 'repeat'
+                ? '慢速例句跟读'
+                : mode === 'listening'
+                ? '雅思听力场景词汇'
+                : '看中文例句，复写英文表达'}
             </h1>
           </div>
           <div className="mode-tabs" role="tablist" aria-label="练习模式">
@@ -951,6 +1127,16 @@ function App() {
               <Sparkles size={18} />
               造句表达
             </button>
+            <button
+              className={mode === 'listening' ? 'active' : ''}
+              onClick={() => {
+                setReviewCardActive(false);
+                setMode('listening');
+              }}
+            >
+              <Headphones size={18} />
+              听力词汇
+            </button>
           </div>
         </header>
 
@@ -971,18 +1157,44 @@ function App() {
           {sectionResult && <SectionResult result={sectionResult} onClose={() => setSectionResult(null)} />}
           {sessionSummary && <SessionSummary summary={sessionSummary} onClose={() => setSessionSummary(null)} />}
           <div className="card-meta">
-            {reviewActive && <span>复习上次结束清单</span>}
-            <span>{current.chapterTitle}</span>
-            <span>{current.sectionTitle}</span>
-            <span>
-              {index + 1} / {filteredEntries.length}
-            </span>
-            <span>
-              小章节进度 {sectionDone} / {sectionEntries.length}
-            </span>
+            {mode === 'listening' ? (
+              <>
+                <span>{currentListening.scene}</span>
+                <span>{listeningExerciseLabels[listeningExercise]}</span>
+                <span>
+                  {listeningIndex + 1} / {filteredListeningEntries.length}
+                </span>
+                <span>来自 PDF 第 {currentListening.page} 页</span>
+              </>
+            ) : (
+              <>
+                {reviewActive && <span>复习上次结束清单</span>}
+                <span>{current.chapterTitle}</span>
+                <span>{current.sectionTitle}</span>
+                <span>
+                  {index + 1} / {filteredEntries.length}
+                </span>
+                <span>
+                  小章节进度 {sectionDone} / {sectionEntries.length}
+                </span>
+              </>
+            )}
           </div>
 
-          {reviewCardActive ? (
+          {mode === 'listening' ? (
+            <ListeningPractice
+              current={currentListening}
+              exercise={listeningExercise}
+              answer={listeningAnswer}
+              submitted={listeningSubmitted}
+              correct={listeningCorrect}
+              choices={getListeningChoices()}
+              setAnswer={setListeningAnswer}
+              submitListening={submitListening}
+              playWord={playListeningWord}
+              playExample={playListeningExample}
+            />
+          ) : reviewCardActive ? (
             <ReviewFlashcard
               current={current}
               index={index}
@@ -1017,14 +1229,14 @@ function App() {
           )}
 
           <div className="card-actions">
-            <button className="secondary-button" onClick={() => moveTo(index - 1)}>
+            <button className="secondary-button" onClick={() => (mode === 'listening' ? moveListeningTo(listeningIndex - 1) : moveTo(index - 1))}>
               <ChevronLeft size={18} />
               上一个
             </button>
-            <button className="secondary-button icon-only" aria-label="随机抽词" onClick={randomCard}>
+            <button className="secondary-button icon-only" aria-label="随机抽词" onClick={mode === 'listening' ? randomListeningCard : randomCard}>
               <Shuffle size={18} />
             </button>
-            <button className="primary-button" onClick={() => moveTo(index + 1)}>
+            <button className="primary-button" onClick={() => (mode === 'listening' ? moveListeningTo(listeningIndex + 1) : moveTo(index + 1))}>
               下一个
               <ChevronRight size={18} />
             </button>
@@ -1032,6 +1244,130 @@ function App() {
         </section>
       </section>
     </main>
+  );
+}
+
+function ListeningPractice({
+  current,
+  exercise,
+  answer,
+  submitted,
+  correct,
+  choices,
+  setAnswer,
+  submitListening,
+  playWord,
+  playExample
+}) {
+  const definition = getListeningDefinition(current);
+  const example = getListeningExample(current);
+
+  return (
+    <div className="listening-layout">
+      <div className="listening-hero">
+        <span>先听，不看单词</span>
+        <strong>{listeningExerciseLabels[exercise]}</strong>
+        <p>
+          {exercise === 'choice'
+            ? '听单词后选择最接近的英文释义。'
+            : exercise === 'spelling'
+            ? '听单词后写出英文拼写。'
+            : '听例句后补出空缺的核心词。'}
+        </p>
+      </div>
+
+      <div className="repeat-controls">
+        <button className="listen-button selected" onClick={playWord}>
+          <Volume2 size={22} />
+          播放单词
+        </button>
+        <button className="secondary-button" onClick={playExample}>
+          <Volume2 size={18} />
+          播放例句
+        </button>
+      </div>
+
+      <form className="listening-form" onSubmit={submitListening}>
+        {exercise === 'choice' && (
+          <div className="choice-grid">
+            {choices.map((choice) => (
+              <label key={choice.id} className={`choice-option ${answer === choice.id ? 'selected' : ''}`}>
+                <input
+                  type="radio"
+                  name="listeningChoice"
+                  value={choice.id}
+                  checked={answer === choice.id}
+                  onChange={(event) => setAnswer(event.target.value)}
+                  required
+                />
+                <span>{getListeningDefinition(choice)}</span>
+              </label>
+            ))}
+          </div>
+        )}
+
+        {exercise === 'spelling' && (
+          <label className="listening-input">
+            <span>写出你听到的英文词汇</span>
+            <input
+              value={answer}
+              onChange={(event) => setAnswer(event.target.value)}
+              placeholder="Type the word or phrase you heard"
+              autoCapitalize="none"
+              required
+            />
+          </label>
+        )}
+
+        {exercise === 'sentence' && (
+          <>
+            <div className="sentence-blank">
+              <span>例句填空</span>
+              <strong>{blankListeningExample(current)}</strong>
+            </div>
+            <label className="listening-input">
+              <span>填写空缺词汇</span>
+              <input
+                value={answer}
+                onChange={(event) => setAnswer(event.target.value)}
+                placeholder="Fill in the missing word"
+                autoCapitalize="none"
+                required
+              />
+            </label>
+          </>
+        )}
+
+        <button className="primary-button" type="submit">
+          提交答案
+        </button>
+      </form>
+
+      {submitted && (
+        <div className={`feedback ${correct ? 'correct' : 'focus'}`}>
+          <div>
+            <span>{correct ? '答对了' : '再听一遍就会更稳'}</span>
+            <strong>{current.term}</strong>
+          </div>
+          <button className="secondary-button" onClick={playWord}>
+            <Volume2 size={18} />
+            重听单词
+          </button>
+          <p>
+            <b>英文释义：</b>
+            {definition}
+          </p>
+          <p>
+            <b>例句：</b>
+            {example}
+          </p>
+          <p>
+            <b>来源：</b>
+            {current.scene} · PDF 第 {current.page} 页
+          </p>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1098,7 +1434,8 @@ function RepeatPractice({
 }
 
 function SessionSummary({ summary, onClose }) {
-  const modeLabel = summary.mode === 'repeat' ? '例句跟读' : '造句表达';
+  const modeLabel = summary.mode === 'repeat' ? '例句跟读' : summary.mode === 'listening' ? '听力词汇' : '造句表达';
+  const unitLabel = summary.mode === 'listening' ? '张听力卡' : '个词';
   const progressText = summary.sectionTotal
     ? `这个小章节目前完成 ${summary.sectionDone} / ${summary.sectionTotal}。`
     : '';
@@ -1107,10 +1444,11 @@ function SessionSummary({ summary, onClose }) {
     <section className="session-summary">
       <div>
         <span>今日小结 · {summary.date}</span>
-        <strong>今天完成 {summary.studiedCount} 个词的学习记录</strong>
+        <strong>今天完成 {summary.studiedCount} {unitLabel}的学习记录</strong>
         <p>
           已保存到 {summary.chapterTitle} / {summary.sectionTitle}，下次进入会从“{summary.term}”附近继续。
-          上次学习清单里有 {summary.reviewCount} 个词，适合明天先快速过一遍。{progressText}
+          {summary.reviewCount > 0 ? `上次学习清单里有 ${summary.reviewCount} 个词，适合明天先快速过一遍。` : ''}
+          {progressText}
         </p>
         <em>{modeLabel}这一轮先收住。今天这组词已经在脑子里留了痕，明天从复习清单热身就很好。</em>
       </div>

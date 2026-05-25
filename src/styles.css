@@ -451,13 +451,15 @@ h1 {
 }
 
 .repeat-layout,
-.recall-layout {
+.recall-layout,
+.listening-layout {
   display: grid;
   gap: 18px;
 }
 
 .word-block,
-.prompt-panel {
+.prompt-panel,
+.listening-hero {
   min-width: 0;
   padding: 28px;
   border-radius: 8px;
@@ -648,6 +650,107 @@ h1 {
   font-weight: 750;
 }
 
+.listening-hero {
+  background: #1f3f5f;
+}
+
+.listening-hero span,
+.sentence-blank span,
+.listening-input span {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.listening-hero span {
+  color: #dbe8f4;
+}
+
+.listening-hero strong {
+  display: block;
+  color: #ffffff;
+  font-size: clamp(34px, 6vw, 64px);
+  line-height: 1.05;
+}
+
+.listening-hero p {
+  margin: 12px 0 0;
+  color: #eaf1f8;
+  font-size: 18px;
+  line-height: 1.5;
+}
+
+.listening-form {
+  display: grid;
+  gap: 14px;
+}
+
+.choice-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.choice-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #d9e1ea;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.choice-option.selected {
+  border-color: #30628e;
+  background: #eff6ff;
+}
+
+.choice-option input {
+  margin-top: 4px;
+}
+
+.choice-option span {
+  color: #182230;
+  line-height: 1.5;
+}
+
+.listening-input {
+  display: grid;
+  gap: 8px;
+}
+
+.listening-input span,
+.sentence-blank span {
+  color: #667085;
+}
+
+.listening-input input {
+  width: 100%;
+  min-height: 52px;
+  padding: 0 14px;
+  border: 1px solid #d8e0ea;
+  border-radius: 8px;
+  color: #182230;
+  background: #ffffff;
+}
+
+.sentence-blank {
+  padding: 18px;
+  border: 1px solid #d9e1ea;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.sentence-blank strong {
+  display: block;
+  color: #182230;
+  font-size: 24px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 .sentence-form {
   display: grid;
   gap: 12px;
@@ -705,6 +808,10 @@ textarea[readonly] {
 
 .feedback.correct {
   border-color: #bbf7d0;
+}
+
+.feedback.focus {
+  border-color: #fed7aa;
 }
 
 .feedback strong {
