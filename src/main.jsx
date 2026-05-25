@@ -266,6 +266,7 @@ function App() {
   const [reviewCardActive, setReviewCardActive] = useState(false);
   const [index, setIndex] = useState(savedProgress.index || 0);
   const [listeningIndex, setListeningIndex] = useState(savedProgress.listeningIndex || 0);
+  const [listeningCurrentId, setListeningCurrentId] = useState(savedProgress.listeningCurrentId || '');
   const [listeningExercise, setListeningExercise] = useState(savedProgress.listeningExercise || 'choice');
   const [listeningAnswer, setListeningAnswer] = useState('');
   const [listeningSubmitted, setListeningSubmitted] = useState(false);
@@ -338,7 +339,12 @@ function App() {
   }, [query, sceneListeningEntries]);
 
   const current = filteredEntries[index % filteredEntries.length];
-  const currentListening = filteredListeningEntries[listeningIndex % filteredListeningEntries.length];
+  const savedListeningPosition = filteredListeningEntries.findIndex((entry) => entry.id === listeningCurrentId);
+  const currentListeningIndex =
+    savedListeningPosition >= 0
+      ? savedListeningPosition
+      : Math.min(listeningIndex, Math.max(filteredListeningEntries.length - 1, 0));
+  const currentListening = filteredListeningEntries[currentListeningIndex];
   const sectionEntries = useMemo(
     () =>
       allEntries.filter(
@@ -360,6 +366,13 @@ function App() {
   }, [filteredListeningEntries.length]);
 
   useEffect(() => {
+    if (!filteredListeningEntries.length) return;
+    if (filteredListeningEntries.some((entry) => entry.id === listeningCurrentId)) return;
+    setListeningCurrentId(filteredListeningEntries[0].id);
+    setListeningIndex(0);
+  }, [filteredListeningEntries, listeningCurrentId]);
+
+  useEffect(() => {
     if (restoredProgressRef.current || !savedProgress.currentId) return;
     const savedIndex = filteredEntries.findIndex((entry) => entry.id === savedProgress.currentId);
     if (savedIndex >= 0) setIndex(savedIndex);
@@ -373,7 +386,7 @@ function App() {
 
   useEffect(() => {
     resetListeningState();
-  }, [listeningScene, listeningExercise, query, listeningIndex]);
+  }, [listeningScene, listeningExercise, query, currentListening.id]);
 
   useEffect(() => {
     const syncVoices = () => {
@@ -398,7 +411,7 @@ function App() {
   useEffect(() => {
     if (reviewActive) return;
     saveCurrentProgress();
-  }, [chapterId, index, listeningExercise, listeningIndex, listeningScene, mode, query, reviewActive, sectionTitle]);
+  }, [chapterId, index, listeningCurrentId, listeningExercise, listeningIndex, listeningScene, mode, query, reviewActive, sectionTitle]);
 
   function makeCurrentProgress() {
     return {
@@ -409,6 +422,7 @@ function App() {
       mode,
       index,
       listeningIndex,
+      listeningCurrentId: currentListening.id,
       listeningExercise,
       currentId: current.id
     };
@@ -671,8 +685,12 @@ function App() {
   };
 
   const moveListeningTo = (nextIndex, targetEntries = filteredListeningEntries, shouldClearSearch = false) => {
+    if (!targetEntries.length) return;
+    const normalizedIndex = (nextIndex + targetEntries.length) % targetEntries.length;
+    const nextEntry = targetEntries[normalizedIndex];
     if (shouldClearSearch && query) setQuery('');
-    setListeningIndex((nextIndex + targetEntries.length) % targetEntries.length);
+    setListeningIndex(normalizedIndex);
+    setListeningCurrentId(nextEntry.id);
     resetListeningState();
     stopSpeaking();
   };
@@ -682,7 +700,7 @@ function App() {
     const targetEntries = useSceneList ? sceneListeningEntries : filteredListeningEntries;
     if (targetEntries.length < 2) return;
     const currentPosition = targetEntries.findIndex((entry) => entry.id === currentListening.id);
-    const baseIndex = currentPosition >= 0 ? currentPosition : listeningIndex;
+    const baseIndex = currentPosition >= 0 ? currentPosition : currentListeningIndex;
     moveListeningTo(baseIndex + step, targetEntries, useSceneList);
   };
 
@@ -869,13 +887,13 @@ function App() {
     if (mode === 'listening') {
       setSessionSummary({
         date,
-        studiedCount: listeningIndex + 1,
+        studiedCount: currentListeningIndex + 1,
         reviewCount: 0,
         chapterTitle: '雅思听力场景词汇',
         sectionTitle: currentListening.scene,
         term: currentListening.term,
         mode,
-        sectionDone: listeningIndex + 1,
+        sectionDone: currentListeningIndex + 1,
         sectionTotal: filteredListeningEntries.length
       });
       return;
@@ -1125,6 +1143,7 @@ function App() {
           </div>
           <div className="mode-tabs" role="tablist" aria-label="练习模式">
             <button
+              type="button"
               className={mode === 'repeat' ? 'active' : ''}
               onClick={() => {
                 setReviewCardActive(false);
@@ -1135,6 +1154,7 @@ function App() {
               跟读
             </button>
             <button
+              type="button"
               className={mode === 'recall' ? 'active' : ''}
               onClick={() => {
                 setReviewCardActive(false);
@@ -1145,6 +1165,7 @@ function App() {
               造句表达
             </button>
             <button
+              type="button"
               className={mode === 'listening' ? 'active' : ''}
               onClick={() => {
                 setReviewCardActive(false);
@@ -1179,7 +1200,7 @@ function App() {
                 <span>{currentListening.scene}</span>
                 <span>{listeningExerciseLabels[listeningExercise]}</span>
                 <span>
-                  {listeningIndex + 1} / {filteredListeningEntries.length}
+                  {currentListeningIndex + 1} / {filteredListeningEntries.length}
                 </span>
                 <span>来自 PDF 第 {currentListening.page} 页</span>
               </>
@@ -1246,14 +1267,14 @@ function App() {
           )}
 
           <div className="card-actions">
-            <button className="secondary-button" onClick={() => (mode === 'listening' ? moveListeningBy(-1) : moveTo(index - 1))}>
+            <button type="button" className="secondary-button" onClick={() => (mode === 'listening' ? moveListeningBy(-1) : moveTo(index - 1))}>
               <ChevronLeft size={18} />
               上一个
             </button>
-            <button className="secondary-button icon-only" aria-label="随机抽词" onClick={mode === 'listening' ? randomListeningCard : randomCard}>
+            <button type="button" className="secondary-button icon-only" aria-label="随机抽词" onClick={mode === 'listening' ? randomListeningCard : randomCard}>
               <Shuffle size={18} />
             </button>
-            <button className="primary-button" onClick={() => (mode === 'listening' ? moveListeningBy(1) : moveTo(index + 1))}>
+            <button type="button" className="primary-button" onClick={() => (mode === 'listening' ? moveListeningBy(1) : moveTo(index + 1))}>
               下一个
               <ChevronRight size={18} />
             </button>
@@ -1294,11 +1315,11 @@ function ListeningPractice({
       </div>
 
       <div className="repeat-controls">
-        <button className="listen-button selected" onClick={playWord}>
+        <button type="button" className="listen-button selected" onClick={playWord}>
           <Volume2 size={22} />
           播放单词
         </button>
-        <button className="secondary-button" onClick={playExample}>
+        <button type="button" className="secondary-button" onClick={playExample}>
           <Volume2 size={18} />
           播放例句
         </button>
@@ -1366,7 +1387,7 @@ function ListeningPractice({
             <span>{correct ? '答对了' : '再听一遍就会更稳'}</span>
             <strong>{current.term}</strong>
           </div>
-          <button className="secondary-button" onClick={playWord}>
+          <button type="button" className="secondary-button" onClick={playWord}>
             <Volume2 size={18} />
             重听单词
           </button>
