@@ -32,6 +32,8 @@ const PROGRESS_STORAGE_KEY = 'english-bao-last-progress-v1';
 const VOICE_STORAGE_KEY = 'english-bao-voice-v1';
 const DAILY_STUDY_STORAGE_KEY = 'english-bao-daily-study-v1';
 const LAST_SESSION_REVIEW_STORAGE_KEY = 'english-bao-last-session-review-v1';
+const LISTENING_DAILY_STUDY_STORAGE_KEY = 'english-bao-listening-daily-study-v1';
+const LISTENING_LAST_SESSION_REVIEW_STORAGE_KEY = 'english-bao-listening-last-session-review-v1';
 const MAX_REVIEW_ITEMS = 80;
 
 const todayKey = () => {
@@ -205,9 +207,9 @@ const loadProgress = () => {
   }
 };
 
-const loadDailyStudy = () => {
+const loadDailyStudy = (storageKey = DAILY_STUDY_STORAGE_KEY) => {
   try {
-    const saved = JSON.parse(localStorage.getItem(DAILY_STUDY_STORAGE_KEY) || '{}');
+    const saved = JSON.parse(localStorage.getItem(storageKey) || '{}');
     if (saved?.date === todayKey() && Array.isArray(saved.ids)) {
       return { date: saved.date, ids: saved.ids.filter((id) => typeof id === 'string') };
     }
@@ -217,15 +219,15 @@ const loadDailyStudy = () => {
   return { date: todayKey(), ids: [] };
 };
 
-const saveDailyStudy = (dailyStudy) => {
-  localStorage.setItem(DAILY_STUDY_STORAGE_KEY, JSON.stringify(dailyStudy));
+const saveDailyStudy = (dailyStudy, storageKey = DAILY_STUDY_STORAGE_KEY) => {
+  localStorage.setItem(storageKey, JSON.stringify(dailyStudy));
 };
 
 const cleanIdList = (ids) => (Array.isArray(ids) ? ids.filter((id) => typeof id === 'string') : []);
 
-const loadLastSessionReview = () => {
+const loadLastSessionReview = (storageKey = LAST_SESSION_REVIEW_STORAGE_KEY) => {
   try {
-    const saved = JSON.parse(localStorage.getItem(LAST_SESSION_REVIEW_STORAGE_KEY) || '{}');
+    const saved = JSON.parse(localStorage.getItem(storageKey) || '{}');
     return {
       date: typeof saved.date === 'string' ? saved.date : '',
       ids: cleanIdList(saved.ids),
@@ -238,6 +240,10 @@ const loadLastSessionReview = () => {
 
 const saveLastSessionReview = (sessionReview) => {
   localStorage.setItem(LAST_SESSION_REVIEW_STORAGE_KEY, JSON.stringify(sessionReview));
+};
+
+const saveListeningLastSessionReview = (sessionReview) => {
+  localStorage.setItem(LISTENING_LAST_SESSION_REVIEW_STORAGE_KEY, JSON.stringify(sessionReview));
 };
 
 const loadVoiceName = () => {
@@ -280,6 +286,12 @@ function App() {
   const [sectionResult, setSectionResult] = useState(null);
   const [dailyStudy, setDailyStudy] = useState(loadDailyStudy);
   const [lastSessionReview, setLastSessionReview] = useState(loadLastSessionReview);
+  const [listeningDailyStudy, setListeningDailyStudy] = useState(() =>
+    loadDailyStudy(LISTENING_DAILY_STUDY_STORAGE_KEY)
+  );
+  const [listeningLastSessionReview, setListeningLastSessionReview] = useState(() =>
+    loadLastSessionReview(LISTENING_LAST_SESSION_REVIEW_STORAGE_KEY)
+  );
   const [reviewSourceIds, setReviewSourceIds] = useState([]);
   const [sessionSummary, setSessionSummary] = useState(null);
   const restoredProgressRef = useRef(false);
@@ -324,6 +336,12 @@ function App() {
   }, [listeningScene]);
 
   const filteredListeningEntries = useMemo(() => {
+    if (reviewActive && mode === 'listening') {
+      const entryMap = new Map(listeningVocabEntries.map((entry) => [entry.id, entry]));
+      const reviewEntries = reviewSourceIds.map((id) => entryMap.get(id)).filter(Boolean);
+      return reviewEntries.length ? reviewEntries : listeningVocabEntries;
+    }
+
     const keyword = normalize(query);
     const list = sceneListeningEntries.filter((entry) => {
       const inSearch =
@@ -332,7 +350,7 @@ function App() {
       return inSearch;
     });
     return list.length ? list : sceneListeningEntries;
-  }, [query, sceneListeningEntries]);
+  }, [mode, query, reviewActive, reviewSourceIds, sceneListeningEntries]);
 
   const current = filteredEntries[index % filteredEntries.length];
   const savedListeningPosition = filteredListeningEntries.findIndex((entry) => entry.id === listeningCurrentId);
@@ -499,6 +517,38 @@ function App() {
       saveReviewIds(next);
       return next;
     });
+  };
+
+  const rememberListeningDailyStudy = (entry) => {
+    setListeningDailyStudy((previous) => {
+      const date = todayKey();
+      const baseIds = previous.date === date ? previous.ids : [];
+      const next = {
+        date,
+        ids: [entry.id, ...baseIds.filter((id) => id !== entry.id)]
+      };
+      saveDailyStudy(next, LISTENING_DAILY_STUDY_STORAGE_KEY);
+      return next;
+    });
+  };
+
+  const markListeningReviewDone = (entry) => {
+    if (!reviewActive || mode !== 'listening') return;
+    setListeningLastSessionReview((previous) => {
+      if (!previous.ids.includes(entry.id)) return previous;
+      if (previous.reviewedIds.includes(entry.id)) return previous;
+      const next = {
+        ...previous,
+        reviewedIds: [...previous.reviewedIds, entry.id]
+      };
+      saveListeningLastSessionReview(next);
+      return next;
+    });
+  };
+
+  const rememberListeningStudy = (entry) => {
+    rememberListeningDailyStudy(entry);
+    markListeningReviewDone(entry);
   };
 
   const pickEnglishVoice = (voices) =>
@@ -775,11 +825,13 @@ function App() {
     if (listeningExercise === 'spelling') {
       correct = spellingMatches(listeningAnswer, currentListening.term);
     }
+    rememberListeningStudy(currentListening);
     setListeningSubmitted(true);
     setListeningCorrect(correct);
   };
 
   const chooseListeningOption = (option) => {
+    rememberListeningStudy(currentListening);
     setListeningAnswer(option);
     setListeningSubmitted(true);
     setListeningCorrect(normalizeSpelling(option) === normalizeSpelling(currentListening.term));
@@ -938,10 +990,18 @@ function App() {
 
     const date = todayKey();
     if (mode === 'listening') {
+      const baseIds = listeningDailyStudy.date === date ? listeningDailyStudy.ids : [];
+      const ids = [currentListening.id, ...baseIds.filter((id) => id !== currentListening.id)];
+      const nextListeningDailyStudy = { date, ids };
+      const nextListeningLastSessionReview = { date, ids, reviewedIds: [] };
+      saveDailyStudy(nextListeningDailyStudy, LISTENING_DAILY_STUDY_STORAGE_KEY);
+      saveListeningLastSessionReview(nextListeningLastSessionReview);
+      setListeningDailyStudy(nextListeningDailyStudy);
+      setListeningLastSessionReview(nextListeningLastSessionReview);
       setSessionSummary({
         date,
-        studiedCount: currentListeningIndex + 1,
-        reviewCount: 0,
+        studiedCount: ids.length,
+        reviewCount: ids.length,
         chapterTitle: '雅思听力场景词汇',
         sectionTitle: currentListening.scene,
         term: currentListening.term,
@@ -979,7 +1039,12 @@ function App() {
     recordScore(expressionScore);
   };
 
-  const pendingSessionReviewIds = lastSessionReview.ids.filter((id) => !lastSessionReview.reviewedIds.includes(id));
+  const activeLastSessionReview = mode === 'listening' ? listeningLastSessionReview : lastSessionReview;
+  const activeDailyStudy = mode === 'listening' ? listeningDailyStudy : dailyStudy;
+  const pendingSessionReviewIds = activeLastSessionReview.ids.filter(
+    (id) => !activeLastSessionReview.reviewedIds.includes(id)
+  );
+  const todayStudyCount = activeDailyStudy.date === todayKey() ? activeDailyStudy.ids.length : 0;
 
   const startSessionReview = (asCards = false) => {
     if (!pendingSessionReviewIds.length) return;
@@ -988,11 +1053,19 @@ function App() {
     saveProgress(progress);
     setReviewSourceIds(pendingSessionReviewIds);
     setReviewActive(true);
-    setReviewCardActive(asCards);
     setQuery('');
-    if (asCards) setMode('repeat');
-    setIndex(0);
-    resetCardState();
+    if (mode === 'listening') {
+      setReviewCardActive(false);
+      setListeningCurrentId(pendingSessionReviewIds[0] || '');
+      setListeningIndex(0);
+      resetListeningState();
+      stopSpeaking();
+    } else {
+      setReviewCardActive(asCards);
+      if (asCards) setMode('repeat');
+      setIndex(0);
+      resetCardState();
+    }
     setSectionResult(null);
   };
 
@@ -1007,10 +1080,15 @@ function App() {
     setReviewSourceIds([]);
     setChapterId(progress.chapterId || 'all');
     setSectionTitle(progress.sectionTitle || 'all');
+    setListeningScene(progress.listeningScene || 'all');
     setQuery(progress.query || '');
     setMode(progress.mode || 'repeat');
     setIndex(progress.index || 0);
+    setListeningIndex(progress.listeningIndex || 0);
+    setListeningCurrentId(progress.listeningCurrentId || '');
+    setListeningExercise(progress.listeningExercise || 'choice');
     resetCardState();
+    resetListeningState();
     setSectionResult(null);
   };
 
@@ -1127,18 +1205,23 @@ function App() {
 
         <section className="review-box">
           <div>
-            <span>上次学习待复习</span>
+            <span>{mode === 'listening' ? '听力待复习' : '上次学习待复习'}</span>
             <strong>{pendingSessionReviewIds.length}</strong>
             <small>
-              {lastSessionReview.ids.length
-                ? `来自 ${lastSessionReview.date}，已复习 ${lastSessionReview.reviewedIds.length} / ${lastSessionReview.ids.length}`
+              {activeLastSessionReview.ids.length
+                ? `来自 ${activeLastSessionReview.date}，已复习 ${activeLastSessionReview.reviewedIds.length} / ${activeLastSessionReview.ids.length}`
                 : '点击“结束今天学习”后生成'}
             </small>
           </div>
           {reviewActive ? (
             <button className="review-button" onClick={stopReview}>
               <ChevronLeft size={17} />
-              返回词库
+              {mode === 'listening' ? '返回听力词库' : '返回词库'}
+            </button>
+          ) : mode === 'listening' ? (
+            <button className="review-button" onClick={startReview} disabled={!pendingSessionReviewIds.length}>
+              <RotateCcw size={17} />
+              复习听力词汇
             </button>
           ) : (
             <div className="review-actions">
@@ -1157,7 +1240,7 @@ function App() {
         <section className="finish-box">
           <div>
             <span>今日学习</span>
-            <strong>{dailyStudy.date === todayKey() ? dailyStudy.ids.length : 0}</strong>
+            <strong>{todayStudyCount}</strong>
           </div>
           <button className="finish-button" onClick={endTodayStudy}>
             <CheckCircle2 size={17} />
@@ -1249,6 +1332,7 @@ function App() {
           <div className="card-meta">
             {mode === 'listening' ? (
               <>
+                {reviewActive && <span>复习上次听力</span>}
                 <span>{currentListening.scene}</span>
                 <span>{listeningExerciseLabels[listeningExercise]}</span>
                 <span>
