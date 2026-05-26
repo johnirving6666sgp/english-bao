@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { exampleAudioManifest } from './exampleAudioManifest';
 import { generatedExampleTranslations } from './exampleTranslations';
+import { listeningAudioManifest } from './listeningAudioManifest';
 import { listeningVocabEntries } from './listeningVocabData';
 import { vocabChapters } from './vocabData';
 import './styles.css';
@@ -669,12 +670,54 @@ function App() {
     });
   };
 
+  const playCachedAudio = (audioUrl, fallbackText, fallbackOptions, label = '音频') => {
+    if (!audioUrl) {
+      setReadStatus(`使用系统备用朗读${label}。`);
+      speak(fallbackText, fallbackOptions);
+      return;
+    }
+
+    stopSpeaking();
+    const audio = new Audio(audioUrl);
+    audioRef.current = audio;
+    setReadPlaying(true);
+    setReadStatus(`正在播放预生成${label}音频。`);
+    audio.onended = () => {
+      if (audioRef.current === audio) audioRef.current = null;
+      setReadPlaying(false);
+      setReadStatus(`${label}播放完成。`);
+    };
+    audio.onerror = () => {
+      if (audioRef.current === audio) audioRef.current = null;
+      setReadPlaying(false);
+      setReadStatus(`预生成${label}音频不可用，改用系统备用朗读。`);
+      speak(fallbackText, fallbackOptions);
+    };
+    audio.play().catch(() => {
+      if (audioRef.current === audio) audioRef.current = null;
+      setReadPlaying(false);
+      setReadStatus(`预生成${label}音频未能播放，改用系统备用朗读。`);
+      speak(fallbackText, fallbackOptions);
+    });
+  };
+
   const playListeningWord = () => {
-    speak(currentListening.term, { rate: 0.62, pause: 260 });
+    playCachedAudio(
+      listeningAudioManifest.words[currentListening.id],
+      currentListening.term,
+      { rate: 0.62, pause: 260 },
+      '单词'
+    );
   };
 
   const playListeningExample = () => {
-    speak(currentListening.example || currentListening.term, { mode: 'guided', rate: 0.62, pause: 420 });
+    const text = currentListening.example || currentListening.term;
+    playCachedAudio(
+      listeningAudioManifest.examples[currentListening.id],
+      text,
+      { mode: 'guided', rate: 0.62, pause: 420 },
+      '例句'
+    );
   };
 
   const moveTo = (nextIndex) => {
