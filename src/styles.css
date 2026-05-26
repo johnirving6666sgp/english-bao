@@ -686,38 +686,39 @@ h1 {
   gap: 14px;
 }
 
-.choice-grid {
+.listening-choice-panel {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
-.choice-option {
+.listening-choice-panel > span {
+  color: #667085;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.listening-option-grid {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
-  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.listening-option {
+  min-height: 72px;
   padding: 14px;
   border: 1px solid #d9e1ea;
   border-radius: 8px;
   background: #ffffff;
+  color: #182230;
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
-.choice-option.selected {
+.listening-option.selected {
   border-color: #30628e;
   background: #eff6ff;
-}
-
-.choice-option.single {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.choice-option input {
-  margin-top: 4px;
-}
-
-.choice-option span {
-  color: #182230;
-  line-height: 1.5;
 }
 
 .listening-input {
@@ -1121,6 +1122,10 @@ textarea[readonly] {
   .card-actions {
     display: grid;
     grid-template-columns: 1fr 46px 1fr;
+  }
+
+  .listening-option-grid {
+    grid-template-columns: 1fr;
   }
 
   .review-card-actions {

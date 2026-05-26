@@ -159,9 +159,6 @@ const getChineseExample = (entry) =>
   generatedExampleTranslations[entry.example] ||
   `请用英文表达一个包含“${entry.meaning}”含义的句子，并尽量使用核心表达“${entry.term}”。`;
 
-const getListeningDefinition = (entry) =>
-  entry.englishDefinition || entry.example || `IELTS listening scene word: ${entry.term}`;
-
 const normalizeSpelling = (value) => normalize(value).replace(/\s+/g, ' ');
 
 const spellingMatches = (answer, term) => {
@@ -173,11 +170,17 @@ const spellingMatches = (answer, term) => {
 };
 
 const listeningExerciseLabels = {
-  choice: '听词看义',
+  choice: '听辨选择',
   spelling: '听写拼写'
 };
 
 const validListeningExercises = new Set(Object.keys(listeningExerciseLabels));
+
+const getListeningOptions = (entry) => {
+  const options = [entry.term, entry.confusingTerm].filter(Boolean);
+  if (options.length < 2) return options;
+  return entry.number % 2 === 0 ? options : [...options].reverse();
+};
 
 const loadReviewIds = () => {
   try {
@@ -323,7 +326,7 @@ function App() {
     const list = sceneListeningEntries.filter((entry) => {
       const inSearch =
         !keyword ||
-        normalize(`${entry.term} ${entry.englishDefinition} ${entry.example} ${entry.scene}`).includes(keyword);
+        normalize(`${entry.term} ${entry.confusingTerm} ${entry.example} ${entry.scene}`).includes(keyword);
       return inSearch;
     });
     return list.length ? list : sceneListeningEntries;
@@ -670,6 +673,10 @@ function App() {
     speak(currentListening.term, { rate: 0.62, pause: 260 });
   };
 
+  const playListeningExample = () => {
+    speak(currentListening.example || currentListening.term, { mode: 'guided', rate: 0.62, pause: 420 });
+  };
+
   const moveTo = (nextIndex) => {
     setIndex((nextIndex + filteredEntries.length) % filteredEntries.length);
     resetCardState();
@@ -720,6 +727,12 @@ function App() {
     }
     setListeningSubmitted(true);
     setListeningCorrect(correct);
+  };
+
+  const chooseListeningOption = (option) => {
+    setListeningAnswer(option);
+    setListeningSubmitted(true);
+    setListeningCorrect(normalizeSpelling(option) === normalizeSpelling(currentListening.term));
   };
 
   const recordScore = (entryScore) => {
@@ -981,7 +994,7 @@ function App() {
                 value={listeningExercise}
                 onChange={(event) => setListeningExercise(event.target.value)}
               >
-                <option value="choice">听词看义</option>
+                <option value="choice">听辨选择</option>
                 <option value="spelling">听写拼写</option>
               </select>
             </div>
@@ -1177,7 +1190,7 @@ function App() {
                 <span>
                   {currentListeningIndex + 1} / {filteredListeningEntries.length}
                 </span>
-                <span>来自 PDF 第 {currentListening.page} 页</span>
+                <span>第 {currentListening.number} 词</span>
               </>
             ) : (
               <>
@@ -1203,7 +1216,9 @@ function App() {
               correct={listeningCorrect}
               setAnswer={setListeningAnswer}
               submitListening={submitListening}
+              chooseOption={chooseListeningOption}
               playWord={playListeningWord}
+              playExample={playListeningExample}
             />
           ) : reviewCardActive ? (
             <ReviewFlashcard
@@ -1266,18 +1281,20 @@ function ListeningPractice({
   correct,
   setAnswer,
   submitListening,
-  playWord
+  chooseOption,
+  playWord,
+  playExample
 }) {
-  const definition = getListeningDefinition(current);
+  const listeningOptions = getListeningOptions(current);
 
   return (
     <div className="listening-layout">
       <div className="listening-hero">
-        <span>先听，不看单词</span>
+        <span>先听，再选</span>
         <strong>{listeningExerciseLabels[exercise]}</strong>
         <p>
           {exercise === 'choice'
-            ? '听单词后看英文释义，确认自己是否听懂。'
+            ? '播放单词或例句后，在正确词和易混词之间做选择。'
             : '听单词后写出英文拼写。'}
         </p>
       </div>
@@ -1287,13 +1304,27 @@ function ListeningPractice({
           <Volume2 size={22} />
           播放单词
         </button>
+        <button type="button" className="secondary-button" onClick={playExample}>
+          <Volume2 size={18} />
+          播放例句
+        </button>
       </div>
 
       <form className="listening-form" onSubmit={submitListening}>
         {exercise === 'choice' && (
-          <div className="choice-grid">
-            <div className="choice-option single">
-              <span>{definition}</span>
+          <div className="listening-choice-panel">
+            <span>选择你听到的词</span>
+            <div className="listening-option-grid">
+              {listeningOptions.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  className={`listening-option ${answer === option ? 'selected' : ''}`}
+                  onClick={() => chooseOption(option)}
+                >
+                  {option}
+                </button>
+              ))}
             </div>
           </div>
         )}
@@ -1321,7 +1352,7 @@ function ListeningPractice({
       {submitted && (
         <div className={`feedback ${correct ? 'correct' : 'focus'}`}>
           <div>
-            <span>{correct ? '答对了' : '再听一遍就会更稳'}</span>
+            <span>{correct ? '听对了' : '这组很容易混，再听一遍就会更稳'}</span>
             <strong>{current.term}</strong>
           </div>
           <button type="button" className="secondary-button" onClick={playWord}>
@@ -1329,12 +1360,16 @@ function ListeningPractice({
             重听单词
           </button>
           <p>
-            <b>英文释义：</b>
-            {definition}
+            <b>易混词：</b>
+            {current.confusingTerm || '暂无'}
+          </p>
+          <p>
+            <b>例句：</b>
+            {current.example || '暂无例句'}
           </p>
           <p>
             <b>来源：</b>
-            {current.scene} · PDF 第 {current.page} 页
+            {current.scene} · 第 {current.number} 词
           </p>
         </div>
       )}
