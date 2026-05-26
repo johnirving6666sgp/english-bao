@@ -289,6 +289,7 @@ function App() {
   const speechRunRef = useRef(0);
   const speechTimersRef = useRef([]);
   const recognitionTimersRef = useRef([]);
+  const recognitionStartTimerRef = useRef(null);
   const audioRef = useRef(null);
   const utteranceRef = useRef(null);
 
@@ -537,6 +538,19 @@ function App() {
     recognitionTimersRef.current = [];
   };
 
+  const cleanupAudio = (audio) => {
+    audio.onended = null;
+    audio.onerror = null;
+    try {
+      audio.pause();
+      audio.currentTime = 0;
+      audio.removeAttribute('src');
+      audio.load();
+    } catch {
+      // Mobile browsers can throw while tearing down an active media session.
+    }
+  };
+
   const stopSpeaking = () => {
     speechRunRef.current += 1;
     speechTimersRef.current.forEach((timer) => window.clearTimeout(timer));
@@ -548,16 +562,7 @@ function App() {
       const audio = audioRef.current;
       stoppedAudio = true;
       audioRef.current = null;
-      audio.onended = null;
-      audio.onerror = null;
-      try {
-        audio.pause();
-        audio.currentTime = 0;
-        audio.removeAttribute('src');
-        audio.load();
-      } catch {
-        // Mobile browsers can throw while tearing down an active media session.
-      }
+      cleanupAudio(audio);
     }
     SpeechSynthesis?.cancel();
     return stoppedAudio;
@@ -653,6 +658,7 @@ function App() {
     setReadStatus('正在播放预生成例句音频。');
     audio.onended = () => {
       if (audioRef.current === audio) audioRef.current = null;
+      cleanupAudio(audio);
       setReadPlaying(false);
       setReadStatus('例句朗读完成。');
     };
@@ -684,6 +690,7 @@ function App() {
     setReadStatus(`正在播放预生成${label}音频。`);
     audio.onended = () => {
       if (audioRef.current === audio) audioRef.current = null;
+      cleanupAudio(audio);
       setReadPlaying(false);
       setReadStatus(`${label}播放完成。`);
     };
@@ -800,12 +807,13 @@ function App() {
 
   const startListening = () => {
     if (!SpeechRecognition || listening) return;
-    if (readPlaying) {
-      setSpeechStatus('带读还在播放，等它结束后再开始跟读。');
-      return;
-    }
+    const shouldDelayStart = readPlaying || Boolean(audioRef.current) || Boolean(utteranceRef.current);
     stoppingRecognitionRef.current = false;
     clearRecognitionTimers();
+    if (recognitionStartTimerRef.current) {
+      window.clearTimeout(recognitionStartTimerRef.current);
+      recognitionStartTimerRef.current = null;
+    }
     if (recognitionRef.current) {
       try {
         recognitionRef.current.abort();
@@ -817,95 +825,108 @@ function App() {
     stopSpeaking();
     setSpokenText('');
     setSpeechScore(null);
-    setSpeechStatus('正在启动跟读识别。');
+    setSpeechStatus(shouldDelayStart ? '正在停止带读，马上开始跟读识别。' : '正在启动跟读识别。');
 
-    const recognition = new SpeechRecognition();
-    let latestScore = null;
-    let recorded = false;
-    recognition.lang = 'en-US';
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.maxAlternatives = 1;
-    recognition.onstart = () => {
-      if (recognitionRef.current !== recognition) return;
-      setListening(true);
-      setSpeechStatus('正在听，请跟读例句。');
-      const noResultTimer = window.setTimeout(() => {
-        if (recognitionRef.current === recognition && latestScore === null) {
-          setSpeechStatus('还没有识别到内容，本次跟读已结束。再点开始跟读即可。');
-          setListening(false);
-          recognitionRef.current = null;
-          clearRecognitionTimers();
-          try {
-            recognition.abort();
-          } catch {
-            // Mobile browsers can throw when aborting a stale recognition session.
+    const launchRecognition = () => {
+      recognitionStartTimerRef.current = null;
+      const recognition = new SpeechRecognition();
+      let latestScore = null;
+      let recorded = false;
+      recognition.lang = 'en-US';
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.maxAlternatives = 1;
+      recognition.onstart = () => {
+        if (recognitionRef.current !== recognition) return;
+        setListening(true);
+        setSpeechStatus('正在听，请跟读例句。');
+        const noResultTimer = window.setTimeout(() => {
+          if (recognitionRef.current === recognition && latestScore === null) {
+            setSpeechStatus('还没有识别到内容，本次跟读已结束。再点开始跟读即可。');
+            setListening(false);
+            recognitionRef.current = null;
+            clearRecognitionTimers();
+            try {
+              recognition.abort();
+            } catch {
+              // Mobile browsers can throw when aborting a stale recognition session.
+            }
           }
-        }
-      }, 9000);
-      recognitionTimersRef.current.push(noResultTimer);
-    };
-    recognition.onresult = (event) => {
-      if (recognitionRef.current !== recognition) return;
-      clearRecognitionTimers();
-      const transcript = Array.from(event.results)
-        .map((result) => result[0]?.transcript ?? '')
-        .join(' ')
-        .trim();
-      const hasFinal = Array.from(event.results).some((result) => result.isFinal);
-      const score = scoreSpeech(current.example, transcript);
-      latestScore = score;
-      setSpokenText(transcript);
-      setSpeechScore(score);
-      setSpeechStatus(hasFinal ? '已识别到最终结果。' : '正在实时识别。');
-      if (hasFinal) {
-        recorded = true;
-        recordScore(score);
-      }
-    };
-    recognition.onnomatch = () => setSpeechStatus('没有匹配到清晰语音，请离麦克风近一点再试。');
-    recognition.onerror = (event) => {
-      if (recognitionRef.current !== recognition) return;
-      clearRecognitionTimers();
-      recognitionRef.current = null;
-      if (event.error === 'aborted' && stoppingRecognitionRef.current) {
-        setSpeechStatus('已停止跟读识别。');
-        setListening(false);
-        return;
-      }
-      const messages = {
-        'not-allowed': '麦克风权限被拒绝，请在浏览器地址栏允许麦克风。',
-        'no-speech': '没有检测到语音，请点击开始后马上跟读。',
-        'audio-capture': '没有检测到可用麦克风。',
-        aborted: '识别被浏览器中断。请等例句播放完，再点击开始跟读。',
-        network: '浏览器语音识别服务暂时不可用。'
+        }, 9000);
+        recognitionTimersRef.current.push(noResultTimer);
       };
-      setSpeechStatus(messages[event.error] || `语音识别失败：${event.error}`);
-      setListening(false);
+      recognition.onresult = (event) => {
+        if (recognitionRef.current !== recognition) return;
+        clearRecognitionTimers();
+        const transcript = Array.from(event.results)
+          .map((result) => result[0]?.transcript ?? '')
+          .join(' ')
+          .trim();
+        const hasFinal = Array.from(event.results).some((result) => result.isFinal);
+        const score = scoreSpeech(current.example, transcript);
+        latestScore = score;
+        setSpokenText(transcript);
+        setSpeechScore(score);
+        setSpeechStatus(hasFinal ? '已识别到最终结果。' : '正在实时识别。');
+        if (hasFinal) {
+          recorded = true;
+          recordScore(score);
+        }
+      };
+      recognition.onnomatch = () => setSpeechStatus('没有匹配到清晰语音，请离麦克风近一点再试。');
+      recognition.onerror = (event) => {
+        if (recognitionRef.current !== recognition) return;
+        clearRecognitionTimers();
+        recognitionRef.current = null;
+        if (event.error === 'aborted' && stoppingRecognitionRef.current) {
+          setSpeechStatus('已停止跟读识别。');
+          setListening(false);
+          return;
+        }
+        const messages = {
+          'not-allowed': '麦克风权限被拒绝，请在浏览器地址栏允许麦克风。',
+          'no-speech': '没有检测到语音，请点击开始后马上跟读。',
+          'audio-capture': '没有检测到可用麦克风。',
+          aborted: '识别被浏览器中断。请再点开始跟读。',
+          network: '浏览器语音识别服务暂时不可用。'
+        };
+        setSpeechStatus(messages[event.error] || `语音识别失败：${event.error}`);
+        setListening(false);
+      };
+      recognition.onend = () => {
+        if (recognitionRef.current !== recognition) return;
+        clearRecognitionTimers();
+        setListening(false);
+        recognitionRef.current = null;
+        if (!recorded && latestScore !== null) recordScore(latestScore);
+        if (latestScore === null) setSpeechStatus((status) => status || '识别已结束，但没有收到文本。');
+      };
+      recognitionRef.current = recognition;
+      try {
+        recognition.start();
+        setListening(true);
+        setSpeechStatus('正在听，请跟读例句。');
+      } catch (error) {
+        recognitionRef.current = null;
+        setListening(false);
+        setSpeechStatus(`语音识别启动失败：${error.message || '请刷新页面后再试。'}`);
+      }
     };
-    recognition.onend = () => {
-      if (recognitionRef.current !== recognition) return;
-      clearRecognitionTimers();
-      setListening(false);
-      recognitionRef.current = null;
-      if (!recorded && latestScore !== null) recordScore(latestScore);
-      if (latestScore === null) setSpeechStatus((status) => status || '识别已结束，但没有收到文本。');
-    };
-    recognitionRef.current = recognition;
-    try {
-      recognition.start();
-      setListening(true);
-      setSpeechStatus('正在听，请跟读例句。');
-    } catch (error) {
-      recognitionRef.current = null;
-      setListening(false);
-      setSpeechStatus(`语音识别启动失败：${error.message || '请刷新页面后再试。'}`);
+
+    if (shouldDelayStart) {
+      recognitionStartTimerRef.current = window.setTimeout(launchRecognition, 350);
+    } else {
+      launchRecognition();
     }
   };
 
   const stopListening = () => {
     stoppingRecognitionRef.current = true;
     clearRecognitionTimers();
+    if (recognitionStartTimerRef.current) {
+      window.clearTimeout(recognitionStartTimerRef.current);
+      recognitionStartTimerRef.current = null;
+    }
     recognitionRef.current?.stop();
     setListening(false);
   };
@@ -1456,10 +1477,10 @@ function RepeatPractice({
         <button
           className={`record-button ${listening ? 'recording' : ''}`}
           onClick={listening ? stopListening : startListening}
-          disabled={!SpeechRecognition || readPlaying}
+          disabled={!SpeechRecognition}
         >
           {listening ? <MicOff size={22} /> : <Mic size={22} />}
-          {listening ? '停止识别' : readPlaying ? '等待带读结束' : '开始跟读'}
+          {listening ? '停止识别' : readPlaying ? '停止带读并跟读' : '开始跟读'}
         </button>
         {!SpeechRecognition && <p className="hint">当前浏览器不支持语音识别，建议用 Chrome 打开。</p>}
         {readStatus && <p className="hint neutral">{readStatus}</p>}
