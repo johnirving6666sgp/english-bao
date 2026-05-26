@@ -1363,12 +1363,12 @@ function ListeningPractice({
         </p>
       </div>
 
-      <div className="repeat-controls">
+      <div className="repeat-controls listening-controls">
         <button type="button" className="listen-button selected" onClick={playWord}>
           <Volume2 size={22} />
           播放单词
         </button>
-        <button type="button" className="secondary-button" onClick={playExample}>
+        <button type="button" className="secondary-button example-play-button" onClick={playExample}>
           <Volume2 size={18} />
           播放例句
         </button>
@@ -1419,7 +1419,7 @@ function ListeningPractice({
             <span>{correct ? '听对了' : '这组很容易混，再听一遍就会更稳'}</span>
             <strong>{current.term}</strong>
           </div>
-          <button type="button" className="secondary-button" onClick={playWord}>
+          <button type="button" className="secondary-button compact-replay" onClick={playWord}>
             <Volume2 size={18} />
             重听单词
           </button>

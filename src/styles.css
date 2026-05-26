@@ -654,6 +654,15 @@ h1 {
   background: #1f3f5f;
 }
 
+.listening-controls {
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+}
+
+.example-play-button {
+  font-size: 22px;
+  font-weight: 950;
+}
+
 .listening-hero span,
 .sentence-blank span,
 .listening-input span {
@@ -704,8 +713,8 @@ h1 {
 }
 
 .listening-option {
-  min-height: 72px;
-  padding: 14px;
+  min-height: 60px;
+  padding: 10px 12px;
   border: 1px solid #d9e1ea;
   border-radius: 8px;
   background: #ffffff;
@@ -714,6 +723,11 @@ h1 {
   font-weight: 900;
   line-height: 1.2;
   overflow-wrap: anywhere;
+}
+
+.compact-replay {
+  min-height: 42px;
+  padding: 0 14px;
 }
 
 .listening-option.selected {
@@ -1087,6 +1101,86 @@ textarea[readonly] {
     min-height: auto;
   }
 
+  .listening-layout {
+    gap: 12px;
+  }
+
+  .listening-hero {
+    padding: 16px;
+  }
+
+  .listening-hero span {
+    margin-bottom: 5px;
+    font-size: 12px;
+  }
+
+  .listening-hero strong {
+    font-size: 34px;
+  }
+
+  .listening-hero p {
+    margin-top: 6px;
+    font-size: 15px;
+    line-height: 1.35;
+  }
+
+  .listening-controls {
+    grid-template-columns: 0.85fr 1.15fr;
+    gap: 8px;
+  }
+
+  .listening-controls .listen-button,
+  .listening-controls .secondary-button {
+    min-height: 52px;
+    padding: 0 10px;
+  }
+
+  .example-play-button {
+    font-size: 20px;
+  }
+
+  .listening-form,
+  .listening-choice-panel {
+    gap: 8px;
+  }
+
+  .listening-option-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .listening-option {
+    min-height: 54px;
+    padding: 8px 10px;
+    font-size: clamp(16px, 5.4vw, 22px);
+  }
+
+  .listening-layout .feedback {
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .listening-layout .feedback span {
+    margin-bottom: 4px;
+  }
+
+  .listening-layout .feedback strong {
+    font-size: 26px;
+  }
+
+  .listening-layout .feedback p {
+    font-size: 15px;
+    line-height: 1.35;
+  }
+
+  .listening-layout .feedback p:nth-of-type(3) {
+    display: none;
+  }
+
+  .compact-replay {
+    min-height: 38px;
+  }
+
   .word-block,
   .prompt-panel {
     padding: 20px;
@@ -1122,10 +1216,6 @@ textarea[readonly] {
   .card-actions {
     display: grid;
     grid-template-columns: 1fr 46px 1fr;
-  }
-
-  .listening-option-grid {
-    grid-template-columns: 1fr;
   }
 
   .review-card-actions {
