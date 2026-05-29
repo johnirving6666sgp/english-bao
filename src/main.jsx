@@ -4,14 +4,18 @@ import {
   ChevronLeft,
   ChevronRight,
   CheckCircle2,
+  Clock3,
+  FileText,
   Headphones,
   Languages,
   Mic,
   MicOff,
   Pause,
+  PenLine,
   Play,
   RotateCcw,
   Search,
+  Send,
   Shuffle,
   Sparkles,
   Volume2
@@ -35,7 +39,9 @@ const DAILY_STUDY_STORAGE_KEY = 'english-bao-daily-study-v1';
 const LAST_SESSION_REVIEW_STORAGE_KEY = 'english-bao-last-session-review-v1';
 const LISTENING_DAILY_STUDY_STORAGE_KEY = 'english-bao-listening-daily-study-v1';
 const LISTENING_LAST_SESSION_REVIEW_STORAGE_KEY = 'english-bao-listening-last-session-review-v1';
+const WRITING_RECORDS_STORAGE_KEY = 'english-bao-writing-records-v1';
 const MAX_REVIEW_ITEMS = 80;
+const MAX_WRITING_RECORDS = 30;
 
 const todayKey = () => {
   const date = new Date();
@@ -180,6 +186,162 @@ const listeningExerciseLabels = {
 
 const validListeningExercises = new Set(Object.keys(listeningExerciseLabels));
 
+const writingCategories = [
+  '教育',
+  '科技',
+  '环境',
+  '政府与社会',
+  '犯罪与法律',
+  '健康',
+  '媒体',
+  '工作',
+  '全球化',
+  '文化'
+];
+
+const writingTopics = [
+  {
+    id: 'education-online',
+    category: '教育',
+    type: '同意不同意',
+    question:
+      'Some people believe that online learning is as effective as traditional classroom learning. To what extent do you agree or disagree?'
+  },
+  {
+    id: 'education-practical',
+    category: '教育',
+    type: '双边讨论',
+    question:
+      'Some people think schools should focus on practical skills, while others believe academic subjects are more important. Discuss both views and give your own opinion.'
+  },
+  {
+    id: 'tech-ai-jobs',
+    category: '科技',
+    type: '利弊分析',
+    question:
+      'Artificial intelligence is increasingly used in the workplace. Do the advantages of this development outweigh the disadvantages?'
+  },
+  {
+    id: 'tech-children',
+    category: '科技',
+    type: '问题解决',
+    question:
+      'Many children spend too much time using digital devices. What problems does this cause, and what measures can be taken to solve them?'
+  },
+  {
+    id: 'environment-individual',
+    category: '环境',
+    type: '同意不同意',
+    question:
+      'Some people say that individuals can do little to improve the environment, and only governments and large companies can make a difference. To what extent do you agree or disagree?'
+  },
+  {
+    id: 'environment-transport',
+    category: '环境',
+    type: '问题解决',
+    question:
+      'Traffic congestion and air pollution are serious problems in many cities. What are the causes, and what solutions can be adopted?'
+  },
+  {
+    id: 'government-arts',
+    category: '政府与社会',
+    type: '双边讨论',
+    question:
+      'Some people believe governments should spend money on public services rather than arts and culture. Discuss both views and give your opinion.'
+  },
+  {
+    id: 'society-aging',
+    category: '政府与社会',
+    type: '利弊分析',
+    question:
+      'In many countries, the proportion of elderly people is increasing. Do the advantages of this trend outweigh the disadvantages?'
+  },
+  {
+    id: 'crime-prison',
+    category: '犯罪与法律',
+    type: '同意不同意',
+    question:
+      'Some people think that prison is the best way to reduce crime, while others believe education and training are more effective. Discuss both views and give your opinion.'
+  },
+  {
+    id: 'crime-youth',
+    category: '犯罪与法律',
+    type: '原因影响',
+    question:
+      'Youth crime is increasing in many countries. What are the reasons for this trend, and what effects does it have on society?'
+  },
+  {
+    id: 'health-lifestyle',
+    category: '健康',
+    type: '问题解决',
+    question:
+      'Many people today lead unhealthy lifestyles. What are the causes of this problem, and what can be done to encourage healthier living?'
+  },
+  {
+    id: 'health-government',
+    category: '健康',
+    type: '同意不同意',
+    question:
+      'Some people believe governments should be responsible for public health, while others think individuals should take responsibility for their own health. Discuss both views and give your opinion.'
+  },
+  {
+    id: 'media-news',
+    category: '媒体',
+    type: '同意不同意',
+    question:
+      'News media has become more influential in people’s lives. Do you think this is a positive or negative development?'
+  },
+  {
+    id: 'media-advertising',
+    category: '媒体',
+    type: '利弊分析',
+    question:
+      'Advertising encourages people to buy things they do not need. Do the disadvantages of advertising outweigh the advantages?'
+  },
+  {
+    id: 'work-remote',
+    category: '工作',
+    type: '利弊分析',
+    question:
+      'More people are working from home instead of going to the office. Do the advantages of this trend outweigh the disadvantages?'
+  },
+  {
+    id: 'work-balance',
+    category: '工作',
+    type: '问题解决',
+    question:
+      'Many employees find it difficult to balance work and personal life. What are the causes, and what solutions can employers and individuals adopt?'
+  },
+  {
+    id: 'globalization-culture',
+    category: '全球化',
+    type: '同意不同意',
+    question:
+      'Globalisation is causing many local cultures to disappear. To what extent do you agree or disagree?'
+  },
+  {
+    id: 'globalization-trade',
+    category: '全球化',
+    type: '双边讨论',
+    question:
+      'Some people believe international trade benefits all countries, while others think it mainly benefits wealthy nations. Discuss both views and give your opinion.'
+  },
+  {
+    id: 'culture-tourism',
+    category: '文化',
+    type: '利弊分析',
+    question:
+      'International tourism has become a major industry in many countries. Do the benefits of tourism outweigh its drawbacks?'
+  },
+  {
+    id: 'culture-tradition',
+    category: '文化',
+    type: '同意不同意',
+    question:
+      'Some people think traditional customs should be preserved, while others believe people should be free to change them. Discuss both views and give your opinion.'
+  }
+];
+
 const getListeningOptions = (entry) => {
   const options = [entry.term, entry.confusingTerm].filter(Boolean);
   if (options.length < 2) return options;
@@ -247,6 +409,19 @@ const saveListeningLastSessionReview = (sessionReview) => {
   localStorage.setItem(LISTENING_LAST_SESSION_REVIEW_STORAGE_KEY, JSON.stringify(sessionReview));
 };
 
+const loadWritingRecords = () => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(WRITING_RECORDS_STORAGE_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveWritingRecords = (records) => {
+  localStorage.setItem(WRITING_RECORDS_STORAGE_KEY, JSON.stringify(records.slice(0, MAX_WRITING_RECORDS)));
+};
+
 const loadVoiceName = () => {
   try {
     return localStorage.getItem(VOICE_STORAGE_KEY) || '';
@@ -295,6 +470,15 @@ function App() {
   const [listeningLastSessionReview, setListeningLastSessionReview] = useState(() =>
     loadLastSessionReview(LISTENING_LAST_SESSION_REVIEW_STORAGE_KEY)
   );
+  const [writingCategory, setWritingCategory] = useState('全部题材');
+  const [writingTopicId, setWritingTopicId] = useState(writingTopics[0].id);
+  const [writingEssay, setWritingEssay] = useState('');
+  const [writingFeedback, setWritingFeedback] = useState(null);
+  const [writingError, setWritingError] = useState('');
+  const [writingLoading, setWritingLoading] = useState(false);
+  const [writingStartedAt, setWritingStartedAt] = useState(null);
+  const [writingElapsed, setWritingElapsed] = useState(0);
+  const [writingRecords, setWritingRecords] = useState(loadWritingRecords);
   const [reviewSourceIds, setReviewSourceIds] = useState([]);
   const [sessionSummary, setSessionSummary] = useState(null);
   const restoredProgressRef = useRef(false);
@@ -358,6 +542,18 @@ function App() {
     return list.length ? list : sceneListeningEntries;
   }, [mode, query, reviewActive, reviewSourceIds, sceneListeningEntries]);
 
+  const filteredWritingTopics = useMemo(
+    () =>
+      writingCategory === '全部题材'
+        ? writingTopics
+        : writingTopics.filter((topic) => topic.category === writingCategory),
+    [writingCategory]
+  );
+  const currentWritingTopic =
+    writingTopics.find((topic) => topic.id === writingTopicId) || filteredWritingTopics[0] || writingTopics[0];
+  const writingWordCount = writingEssay.trim() ? writingEssay.trim().split(/\s+/).filter(Boolean).length : 0;
+  const writingTimerText = `${Math.floor(writingElapsed / 60)}:${String(writingElapsed % 60).padStart(2, '0')}`;
+
   const current = filteredEntries[index % filteredEntries.length];
   const savedListeningPosition = filteredListeningEntries.findIndex((entry) => entry.id === listeningCurrentId);
   const currentListeningIndex =
@@ -411,6 +607,19 @@ function App() {
   useEffect(() => {
     if (!validListeningExercises.has(listeningExercise)) setListeningExercise('choice');
   }, [listeningExercise]);
+
+  useEffect(() => {
+    if (filteredWritingTopics.some((topic) => topic.id === writingTopicId)) return;
+    setWritingTopicId(filteredWritingTopics[0]?.id || writingTopics[0].id);
+  }, [filteredWritingTopics, writingTopicId]);
+
+  useEffect(() => {
+    if (!writingStartedAt) return;
+    const timer = window.setInterval(() => {
+      setWritingElapsed(Math.floor((Date.now() - writingStartedAt) / 1000));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [writingStartedAt]);
 
   useEffect(() => {
     const syncVoices = () => {
@@ -1280,6 +1489,82 @@ function App() {
     recordScore(expressionScore);
   };
 
+  const startWritingTimer = () => {
+    setWritingStartedAt(Date.now() - writingElapsed * 1000);
+  };
+
+  const pauseWritingTimer = () => {
+    setWritingStartedAt(null);
+  };
+
+  const resetWritingDraft = () => {
+    setWritingEssay('');
+    setWritingFeedback(null);
+    setWritingError('');
+    setWritingElapsed(0);
+    setWritingStartedAt(null);
+  };
+
+  const pickRandomWritingTopic = () => {
+    const pool = filteredWritingTopics.length ? filteredWritingTopics : writingTopics;
+    const next = pool[Math.floor(Math.random() * pool.length)];
+    setWritingTopicId(next.id);
+    setWritingFeedback(null);
+    setWritingError('');
+  };
+
+  const saveWritingRecord = (record) => {
+    setWritingRecords((previous) => {
+      const next = [record, ...previous].slice(0, MAX_WRITING_RECORDS);
+      saveWritingRecords(next);
+      return next;
+    });
+  };
+
+  const submitWriting = async (event) => {
+    event.preventDefault();
+    if (!writingEssay.trim() || writingWordCount < 80) {
+      setWritingError('先写到至少 80 个英文词，再提交给写作教练。');
+      return;
+    }
+
+    setWritingLoading(true);
+    setWritingError('');
+    setWritingFeedback(null);
+    pauseWritingTimer();
+
+    try {
+      const response = await fetch('/api/writing-feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: currentWritingTopic,
+          essay: writingEssay,
+          wordCount: writingWordCount
+        })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || '写作教练暂时不可用。');
+      }
+
+      setWritingFeedback(data);
+      saveWritingRecord({
+        id: `${Date.now()}-${currentWritingTopic.id}`,
+        date: todayKey(),
+        topic: currentWritingTopic,
+        essay: writingEssay,
+        wordCount: writingWordCount,
+        elapsed: writingElapsed,
+        feedback: data
+      });
+    } catch (error) {
+      setWritingError(error.message || '写作教练暂时不可用。');
+    } finally {
+      setWritingLoading(false);
+    }
+  };
+
   const activeLastSessionReview = mode === 'listening' ? listeningLastSessionReview : lastSessionReview;
   const activeDailyStudy = mode === 'listening' ? listeningDailyStudy : dailyStudy;
   const pendingSessionReviewIds = activeLastSessionReview.ids.filter(
@@ -1350,7 +1635,47 @@ function App() {
           </div>
         </div>
 
-        {mode === 'listening' ? (
+        {mode === 'writing' ? (
+          <>
+            <div className="field chapter-field">
+              <label htmlFor="writingCategory">写作题材</label>
+              <select
+                id="writingCategory"
+                value={writingCategory}
+                onChange={(event) => {
+                  setWritingCategory(event.target.value);
+                  setWritingFeedback(null);
+                  setWritingError('');
+                }}
+              >
+                <option value="全部题材">全部题材</option>
+                {writingCategories.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field section-field">
+              <label htmlFor="writingTopic">训练题目</label>
+              <select
+                id="writingTopic"
+                value={currentWritingTopic.id}
+                onChange={(event) => {
+                  setWritingTopicId(event.target.value);
+                  setWritingFeedback(null);
+                  setWritingError('');
+                }}
+              >
+                {filteredWritingTopics.map((topic) => (
+                  <option key={topic.id} value={topic.id}>
+                    {topic.category} · {topic.type}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </>
+        ) : mode === 'listening' ? (
           <>
             <div className="field chapter-field">
               <label htmlFor="listeningScene">听力场景</label>
@@ -1427,78 +1752,122 @@ function App() {
           </>
         )}
 
-        <div className="field search-field">
-          <label htmlFor="search">搜索</label>
-          <div className="search-box">
-            <Search size={17} />
-            <input
-              id="search"
-              value={query}
-              placeholder="单词、释义、例句"
-              disabled={reviewActive}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setIndex(0);
-              }}
-            />
-          </div>
-        </div>
+        {mode === 'writing' ? (
+          <>
+            <section className="review-box">
+              <div>
+                <span>写作记录</span>
+                <strong>{writingRecords.length}</strong>
+                <small>
+                  {writingRecords[0]
+                    ? `最近一次 ${writingRecords[0].date}，预估 ${writingRecords[0].feedback?.overallBand ?? '--'} 分`
+                    : '提交批改后自动保存'}
+                </small>
+              </div>
+              <button className="review-button" onClick={pickRandomWritingTopic}>
+                <Shuffle size={17} />
+                随机换题
+              </button>
+            </section>
 
-        <section className="review-box">
-          <div>
-            <span>{mode === 'listening' ? '听力待复习' : '上次学习待复习'}</span>
-            <strong>{pendingSessionReviewIds.length}</strong>
-            <small>
-              {activeLastSessionReview.ids.length
-                ? `来自 ${activeLastSessionReview.date}，已复习 ${activeLastSessionReview.reviewedIds.length} / ${activeLastSessionReview.ids.length}`
-                : '点击“结束今天学习”后生成'}
-            </small>
-          </div>
-          {reviewActive ? (
-            <button className="review-button" onClick={stopReview}>
-              <ChevronLeft size={17} />
-              {mode === 'listening' ? '返回听力词库' : '返回词库'}
-            </button>
-          ) : mode === 'listening' ? (
-            <button className="review-button" onClick={startReview} disabled={!pendingSessionReviewIds.length}>
-              <RotateCcw size={17} />
-              复习听力词汇
-            </button>
-          ) : (
-            <div className="review-actions">
-              <button className="review-button" onClick={startReview} disabled={!pendingSessionReviewIds.length}>
-                <RotateCcw size={17} />
-                复习上次学习
+            <section className="finish-box">
+              <div>
+                <span>当前字数</span>
+                <strong>{writingWordCount}</strong>
+              </div>
+              <button className="finish-button" onClick={writingStartedAt ? pauseWritingTimer : startWritingTimer}>
+                <Clock3 size={17} />
+                {writingStartedAt ? '暂停计时' : writingElapsed ? '继续计时' : '开始计时'}
               </button>
-              <button className="review-button quiet" onClick={startReviewCards} disabled={!pendingSessionReviewIds.length}>
-                <Play size={17} />
-                复习卡速览
-              </button>
+            </section>
+
+            <div className="stats">
+              <div>
+                <span>训练题库</span>
+                <strong>{writingTopics.length}</strong>
+              </div>
+              <div>
+                <span>计时</span>
+                <strong>{writingTimerText}</strong>
+              </div>
             </div>
-          )}
-        </section>
+          </>
+        ) : (
+          <>
+            <div className="field search-field">
+              <label htmlFor="search">搜索</label>
+              <div className="search-box">
+                <Search size={17} />
+                <input
+                  id="search"
+                  value={query}
+                  placeholder="单词、释义、例句"
+                  disabled={reviewActive}
+                  onChange={(event) => {
+                    setQuery(event.target.value);
+                    setIndex(0);
+                  }}
+                />
+              </div>
+            </div>
 
-        <section className="finish-box">
-          <div>
-            <span>今日学习</span>
-            <strong>{todayStudyCount}</strong>
-          </div>
-          <button className="finish-button" onClick={endTodayStudy}>
-            <CheckCircle2 size={17} />
-            结束今天学习
-          </button>
-        </section>
+            <section className="review-box">
+              <div>
+                <span>{mode === 'listening' ? '听力待复习' : '上次学习待复习'}</span>
+                <strong>{pendingSessionReviewIds.length}</strong>
+                <small>
+                  {activeLastSessionReview.ids.length
+                    ? `来自 ${activeLastSessionReview.date}，已复习 ${activeLastSessionReview.reviewedIds.length} / ${activeLastSessionReview.ids.length}`
+                    : '点击“结束今天学习”后生成'}
+                </small>
+              </div>
+              {reviewActive ? (
+                <button className="review-button" onClick={stopReview}>
+                  <ChevronLeft size={17} />
+                  {mode === 'listening' ? '返回听力词库' : '返回词库'}
+                </button>
+              ) : mode === 'listening' ? (
+                <button className="review-button" onClick={startReview} disabled={!pendingSessionReviewIds.length}>
+                  <RotateCcw size={17} />
+                  复习听力词汇
+                </button>
+              ) : (
+                <div className="review-actions">
+                  <button className="review-button" onClick={startReview} disabled={!pendingSessionReviewIds.length}>
+                    <RotateCcw size={17} />
+                    复习上次学习
+                  </button>
+                  <button className="review-button quiet" onClick={startReviewCards} disabled={!pendingSessionReviewIds.length}>
+                    <Play size={17} />
+                    复习卡速览
+                  </button>
+                </div>
+              )}
+            </section>
 
-        <div className="stats">
-          <div>
-            <span>当前词库</span>
-            <strong>{mode === 'listening' ? filteredListeningEntries.length : filteredEntries.length}</strong>
-          </div>
-          <div>
-            <span>总词条</span>
-            <strong>{mode === 'listening' ? listeningVocabEntries.length : allEntries.length}</strong>
-          </div>
-        </div>
+            <section className="finish-box">
+              <div>
+                <span>今日学习</span>
+                <strong>{todayStudyCount}</strong>
+              </div>
+              <button className="finish-button" onClick={endTodayStudy}>
+                <CheckCircle2 size={17} />
+                结束今天学习
+              </button>
+            </section>
+
+            <div className="stats">
+              <div>
+                <span>当前词库</span>
+                <strong>{mode === 'listening' ? filteredListeningEntries.length : filteredEntries.length}</strong>
+              </div>
+              <div>
+                <span>总词条</span>
+                <strong>{mode === 'listening' ? listeningVocabEntries.length : allEntries.length}</strong>
+              </div>
+            </div>
+          </>
+        )}
       </aside>
 
       <section className="workspace">
@@ -1514,6 +1883,8 @@ function App() {
                 ? '慢速例句跟读'
                 : mode === 'listening'
                 ? '雅思听力场景词汇'
+                : mode === 'writing'
+                ? '雅思写作陪练'
                 : '看中文例句，复写英文表达'}
             </h1>
           </div>
@@ -1557,10 +1928,23 @@ function App() {
               <Headphones size={18} />
               听力词汇
             </button>
+            <button
+              type="button"
+              className={mode === 'writing' ? 'active' : ''}
+              onClick={() => {
+                stopContinuousExamples('');
+                resumeProgressSaving();
+                setReviewCardActive(false);
+                setMode('writing');
+              }}
+            >
+              <PenLine size={18} />
+              写作训练
+            </button>
           </div>
         </header>
 
-        <section className="voice-panel">
+        {mode !== 'writing' && <section className="voice-panel">
           <label htmlFor="voice">发音声音</label>
           <select id="voice" value={selectedVoiceName} onChange={(event) => setSelectedVoiceName(event.target.value)}>
             {!voices.length && <option value="">自动选择英语语音</option>}
@@ -1571,13 +1955,20 @@ function App() {
             ))}
           </select>
           <span>优先播放预生成 AI 例句音频；没有音频时使用当前设备语音备用。iPhone/Mac 上备用语音建议选 Samantha、Ava、Nicky、Alex 或 Google US English。</span>
-        </section>
+        </section>}
 
         <section className="practice-card">
           {sectionResult && <SectionResult result={sectionResult} onClose={() => setSectionResult(null)} />}
           {sessionSummary && <SessionSummary summary={sessionSummary} onClose={() => setSessionSummary(null)} />}
           <div className="card-meta">
-            {mode === 'listening' ? (
+            {mode === 'writing' ? (
+              <>
+                <span>IELTS Writing Task 2</span>
+                <span>{currentWritingTopic.category}</span>
+                <span>{currentWritingTopic.type}</span>
+                <span>{writingWordCount} words</span>
+              </>
+            ) : mode === 'listening' ? (
               <>
                 {reviewActive && <span>复习上次听力</span>}
                 <span>{currentListening.scene}</span>
@@ -1602,7 +1993,25 @@ function App() {
             )}
           </div>
 
-          {mode === 'listening' ? (
+          {mode === 'writing' ? (
+            <WritingPractice
+              topic={currentWritingTopic}
+              essay={writingEssay}
+              setEssay={setWritingEssay}
+              wordCount={writingWordCount}
+              timerText={writingTimerText}
+              timerRunning={Boolean(writingStartedAt)}
+              startTimer={startWritingTimer}
+              pauseTimer={pauseWritingTimer}
+              resetDraft={resetWritingDraft}
+              randomTopic={pickRandomWritingTopic}
+              submitWriting={submitWriting}
+              loading={writingLoading}
+              error={writingError}
+              feedback={writingFeedback}
+              records={writingRecords}
+            />
+          ) : mode === 'listening' ? (
             <ListeningPractice
               current={currentListening}
               exercise={listeningExercise}
@@ -1788,6 +2197,152 @@ function ListeningPractice({
           </p>
         </div>
       )}
+    </div>
+  );
+}
+
+function WritingPractice({
+  topic,
+  essay,
+  setEssay,
+  wordCount,
+  timerText,
+  timerRunning,
+  startTimer,
+  pauseTimer,
+  resetDraft,
+  randomTopic,
+  submitWriting,
+  loading,
+  error,
+  feedback,
+  records
+}) {
+  const bandRows = feedback?.scores
+    ? [
+        ['Task Response', feedback.scores.taskResponse],
+        ['Coherence and Cohesion', feedback.scores.coherenceCohesion],
+        ['Lexical Resource', feedback.scores.lexicalResource],
+        ['Grammar', feedback.scores.grammar]
+      ]
+    : [];
+
+  return (
+    <div className="writing-layout">
+      <section className="writing-prompt">
+        <div>
+          <span>Task 2 · {topic.category} · {topic.type}</span>
+          <strong>{topic.question}</strong>
+          <p>Write at least 250 words. Spend about 40 minutes on this task.</p>
+        </div>
+        <button type="button" className="secondary-button" onClick={randomTopic}>
+          <Shuffle size={18} />
+          换一道题
+        </button>
+      </section>
+
+      <form className="writing-form" onSubmit={submitWriting}>
+        <div className="writing-toolbar">
+          <div>
+            <span>写作计时</span>
+            <strong>{timerText}</strong>
+          </div>
+          <div>
+            <span>字数</span>
+            <strong className={wordCount >= 250 ? 'ready' : ''}>{wordCount}</strong>
+          </div>
+          <button type="button" className="secondary-button" onClick={timerRunning ? pauseTimer : startTimer}>
+            <Clock3 size={18} />
+            {timerRunning ? '暂停' : timerText === '0:00' ? '开始' : '继续'}
+          </button>
+          <button type="button" className="secondary-button" onClick={resetDraft} disabled={loading}>
+            <RotateCcw size={18} />
+            清空
+          </button>
+        </div>
+
+        <label className="writing-editor">
+          <span>你的作文</span>
+          <textarea
+            value={essay}
+            onChange={(event) => setEssay(event.target.value)}
+            placeholder="Write your IELTS Task 2 essay here..."
+            autoCapitalize="sentences"
+            spellCheck="true"
+          />
+        </label>
+
+        {error && <p className="writing-error">{error}</p>}
+
+        <div className="form-actions">
+          <button className="primary-button" type="submit" disabled={loading || wordCount < 80}>
+            {loading ? <Clock3 size={18} /> : <Send size={18} />}
+            {loading ? '批改中' : '提交给写作教练'}
+          </button>
+        </div>
+      </form>
+
+      {feedback && (
+        <section className="writing-report">
+          <div className="writing-score">
+            <span>预估总分</span>
+            <strong>{feedback.overallBand ?? '--'}</strong>
+            <p>{feedback.summary}</p>
+          </div>
+
+          <div className="band-grid">
+            {bandRows.map(([label, value]) => (
+              <div key={label}>
+                <span>{label}</span>
+                <strong>{value ?? '--'}</strong>
+              </div>
+            ))}
+          </div>
+
+          <FeedbackList title="最影响分数的问题" items={feedback.keyIssues} />
+          <FeedbackList title="可以保留的优点" items={feedback.strengths} />
+
+          <div className="writing-comparison">
+            <div>
+              <span>保守改写</span>
+              <p>{feedback.conservativeRewrite}</p>
+            </div>
+            <div>
+              <span>7分示范方向</span>
+              <p>{feedback.bandSevenVersion}</p>
+            </div>
+          </div>
+
+          <FeedbackList title="值得背的表达" items={feedback.usefulExpressions} />
+          <FeedbackList title="下次训练目标" items={feedback.nextPractice} />
+        </section>
+      )}
+
+      {!!records.length && (
+        <section className="writing-history">
+          <span>最近写作记录</span>
+          {records.slice(0, 3).map((record) => (
+            <div key={record.id}>
+              <strong>{record.feedback?.overallBand ?? '--'} · {record.topic.category}</strong>
+              <p>{record.topic.question}</p>
+            </div>
+          ))}
+        </section>
+      )}
+    </div>
+  );
+}
+
+function FeedbackList({ title, items }) {
+  if (!items?.length) return null;
+  return (
+    <div className="feedback-list">
+      <span>{title}</span>
+      <ul>
+        {items.map((item, index) => (
+          <li key={`${title}-${index}`}>{item}</li>
+        ))}
+      </ul>
     </div>
   );
 }
