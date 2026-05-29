@@ -281,6 +281,7 @@ function App() {
   const [readStatus, setReadStatus] = useState('');
   const [readPlaying, setReadPlaying] = useState(false);
   const [continuousListening, setContinuousListening] = useState(false);
+  const [continuousRepeat, setContinuousRepeat] = useState(false);
   const [listening, setListening] = useState(false);
   const [voices, setVoices] = useState([]);
   const [selectedVoiceName, setSelectedVoiceName] = useState(loadVoiceName);
@@ -624,6 +625,7 @@ function App() {
   const stopContinuousExamples = (message = '连续播放已停止。') => {
     continuousRunRef.current += 1;
     setContinuousListening(false);
+    setContinuousRepeat(false);
     stopSpeaking();
     if (message) setReadStatus(message);
   };
@@ -704,6 +706,7 @@ function App() {
   };
 
   const playExample = (text, options = {}) => {
+    stopContinuousExamples('');
     const audioUrl = exampleAudioManifest[text];
     if (!audioUrl) {
       setReadStatus('使用系统备用朗读。');
@@ -862,6 +865,7 @@ function App() {
     const runId = continuousRunRef.current + 1;
     continuousRunRef.current = runId;
     setContinuousListening(true);
+    setContinuousRepeat(false);
     setListeningSubmitted(false);
     setListeningCorrect(null);
     setReadStatus('连续播放启动中。每条例句会播放两遍。');
@@ -901,7 +905,53 @@ function App() {
     }
   };
 
+  const startContinuousRepeatExamples = async () => {
+    if (!filteredEntries.length) return;
+    const runId = continuousRunRef.current + 1;
+    continuousRunRef.current = runId;
+    setContinuousRepeat(true);
+    setContinuousListening(false);
+    setSpokenText('');
+    setSpeechScore(null);
+    setSpeechStatus('');
+    setReadStatus('跟读例句连续播放启动中。每条例句会播放两遍。');
+
+    const startIndex = index >= 0 ? index : 0;
+    for (let offset = 0; offset < filteredEntries.length; offset += 1) {
+      if (runId !== continuousRunRef.current) break;
+      const entryIndex = (startIndex + offset) % filteredEntries.length;
+      const entry = filteredEntries[entryIndex];
+      setIndex(entryIndex);
+      setSpokenText('');
+      setSpeechScore(null);
+      setSpeechStatus('');
+
+      for (let round = 1; round <= 2; round += 1) {
+        if (runId !== continuousRunRef.current) break;
+        setReadStatus(`跟读例句连续播放：第 ${entryIndex + 1} / ${filteredEntries.length} 条，第 ${round} 遍。`);
+        const completed = await playAudioOnce(
+          exampleAudioManifest[entry.example],
+          entry.example,
+          { mode: 'guided', rate: 0.62, pause: 420 },
+          '例句',
+          runId
+        );
+        if (!completed || runId !== continuousRunRef.current) break;
+        if (round < 2) await wait(700);
+      }
+      if (runId !== continuousRunRef.current) break;
+      await wait(950);
+    }
+
+    if (runId === continuousRunRef.current) {
+      setContinuousRepeat(false);
+      setReadPlaying(false);
+      setReadStatus('跟读例句连续播放已完成。');
+    }
+  };
+
   const moveTo = (nextIndex) => {
+    stopContinuousExamples('');
     setIndex((nextIndex + filteredEntries.length) % filteredEntries.length);
     resetCardState();
   };
@@ -984,6 +1034,7 @@ function App() {
 
   const startListening = () => {
     if (!SpeechRecognition || listening) return;
+    stopContinuousExamples('');
     const shouldDelayStart = readPlaying || Boolean(audioRef.current) || Boolean(utteranceRef.current);
     stoppingRecognitionRef.current = false;
     clearRecognitionTimers();
@@ -1430,6 +1481,7 @@ function App() {
               type="button"
               className={mode === 'listening' ? 'active' : ''}
               onClick={() => {
+                stopContinuousExamples('');
                 setReviewCardActive(false);
                 setMode('listening');
               }}
@@ -1520,6 +1572,9 @@ function App() {
               startListening={startListening}
               stopListening={stopListening}
               playExample={playExample}
+              continuousRepeat={continuousRepeat}
+              startContinuousRepeatExamples={startContinuousRepeatExamples}
+              stopContinuousExamples={stopContinuousExamples}
             />
           ) : (
             <RecallPractice
@@ -1679,7 +1734,10 @@ function RepeatPractice({
   spokenText,
   startListening,
   stopListening,
-  playExample
+  playExample,
+  continuousRepeat,
+  startContinuousRepeatExamples,
+  stopContinuousExamples
 }) {
   const scoreLabel =
     listening ? '正在跟读' : speechScore === null ? '等待跟读' : speechScore >= 85 ? '很接近' : speechScore >= 60 ? '可以再读慢一点' : '建议重读';
@@ -1698,14 +1756,14 @@ function RepeatPractice({
       </div>
 
       <div className="repeat-controls">
-        <button className="listen-button selected" onClick={() => playExample(current.example, { mode: 'guided' })} disabled={listening}>
+        <button className="listen-button selected" onClick={() => playExample(current.example, { mode: 'guided' })} disabled={listening || continuousRepeat}>
           <Volume2 size={22} />
-          {listening ? '跟读中' : '自然带读例句'}
+          {continuousRepeat ? '连续播放中' : listening ? '跟读中' : '自然带读例句'}
         </button>
         <button
           className={`record-button ${listening ? 'recording' : ''}`}
           onClick={listening ? stopListening : startListening}
-          disabled={!SpeechRecognition}
+          disabled={!SpeechRecognition || continuousRepeat}
         >
           {listening ? <MicOff size={22} /> : <Mic size={22} />}
           {listening ? '停止识别' : readPlaying ? '停止带读并跟读' : '开始跟读'}
@@ -1713,6 +1771,15 @@ function RepeatPractice({
         {!SpeechRecognition && <p className="hint">当前浏览器不支持语音识别，建议用 Chrome 打开。</p>}
         {readStatus && <p className="hint neutral">{readStatus}</p>}
       </div>
+      <button
+        type="button"
+        className={`continuous-button ${continuousRepeat ? 'playing' : ''}`}
+        onClick={continuousRepeat ? () => stopContinuousExamples() : startContinuousRepeatExamples}
+        disabled={listening}
+      >
+        {continuousRepeat ? <Pause size={18} /> : <Play size={18} />}
+        {continuousRepeat ? '停止连续播放' : '连续播放例句，每句两遍'}
+      </button>
 
       <div className="result-panel">
         <div>
