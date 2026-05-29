@@ -8,6 +8,7 @@ import {
   Languages,
   Mic,
   MicOff,
+  Pause,
   Play,
   RotateCcw,
   Search,
@@ -279,6 +280,7 @@ function App() {
   const [speechStatus, setSpeechStatus] = useState('');
   const [readStatus, setReadStatus] = useState('');
   const [readPlaying, setReadPlaying] = useState(false);
+  const [continuousListening, setContinuousListening] = useState(false);
   const [listening, setListening] = useState(false);
   const [voices, setVoices] = useState([]);
   const [selectedVoiceName, setSelectedVoiceName] = useState(loadVoiceName);
@@ -304,6 +306,7 @@ function App() {
   const recognitionStartTimerRef = useRef(null);
   const audioRef = useRef(null);
   const utteranceRef = useRef(null);
+  const continuousRunRef = useRef(0);
 
   const selectedChapter = vocabChapters.find((chapter) => chapter.id === chapterId);
   const sections = selectedChapter?.sections ?? [];
@@ -618,6 +621,13 @@ function App() {
     return stoppedAudio;
   };
 
+  const stopContinuousExamples = (message = '连续播放已停止。') => {
+    continuousRunRef.current += 1;
+    setContinuousListening(false);
+    stopSpeaking();
+    if (message) setReadStatus(message);
+  };
+
   const speak = (text, options = {}) => {
     if (!SpeechSynthesis) {
       setReadStatus('当前浏览器没有可用的系统朗读能力。');
@@ -758,7 +768,76 @@ function App() {
     });
   };
 
+  const wait = (duration) => new Promise((resolve) => window.setTimeout(resolve, duration));
+
+  const playFallbackOnce = (text, options, label, runId) =>
+    new Promise((resolve) => {
+      if (!SpeechSynthesis || runId !== continuousRunRef.current) {
+        resolve(false);
+        return;
+      }
+      SpeechSynthesis.cancel();
+      const utterance = makeUtterance(text, activeVoice(), {
+        rate: options?.rate ?? 0.62,
+        pitch: options?.pitch ?? 1
+      });
+      utteranceRef.current = utterance;
+      utterance.onstart = () => {
+        if (runId !== continuousRunRef.current) return;
+        setReadPlaying(true);
+        setReadStatus(`正在连续播放${label}。`);
+      };
+      utterance.onend = () => {
+        if (utteranceRef.current === utterance) utteranceRef.current = null;
+        resolve(runId === continuousRunRef.current);
+      };
+      utterance.onerror = () => {
+        if (utteranceRef.current === utterance) utteranceRef.current = null;
+        resolve(false);
+      };
+      SpeechSynthesis.resume?.();
+      SpeechSynthesis.speak(utterance);
+    });
+
+  const playAudioOnce = (audioUrl, fallbackText, fallbackOptions, label, runId) =>
+    new Promise((resolve) => {
+      if (runId !== continuousRunRef.current) {
+        resolve(false);
+        return;
+      }
+
+      stopSpeaking();
+      if (!audioUrl) {
+        setReadStatus(`使用系统备用朗读${label}。`);
+        playFallbackOnce(fallbackText, fallbackOptions, label, runId).then(resolve);
+        return;
+      }
+
+      const audio = new Audio(audioUrl);
+      audioRef.current = audio;
+      setReadPlaying(true);
+      setReadStatus(`正在连续播放${label}。`);
+      audio.onended = () => {
+        if (audioRef.current === audio) audioRef.current = null;
+        cleanupAudio(audio);
+        resolve(runId === continuousRunRef.current);
+      };
+      audio.onerror = () => {
+        if (audioRef.current === audio) audioRef.current = null;
+        cleanupAudio(audio);
+        setReadStatus(`预生成${label}音频不可用，改用系统备用朗读。`);
+        playFallbackOnce(fallbackText, fallbackOptions, label, runId).then(resolve);
+      };
+      audio.play().catch(() => {
+        if (audioRef.current === audio) audioRef.current = null;
+        cleanupAudio(audio);
+        setReadStatus(`预生成${label}音频未能播放，改用系统备用朗读。`);
+        playFallbackOnce(fallbackText, fallbackOptions, label, runId).then(resolve);
+      });
+    });
+
   const playListeningWord = () => {
+    stopContinuousExamples('');
     playCachedAudio(
       listeningAudioManifest.words[currentListening.id],
       currentListening.term,
@@ -768,6 +847,7 @@ function App() {
   };
 
   const playListeningExample = () => {
+    stopContinuousExamples('');
     const text = currentListening.example || currentListening.term;
     playCachedAudio(
       listeningAudioManifest.examples[currentListening.id],
@@ -777,6 +857,50 @@ function App() {
     );
   };
 
+  const startContinuousExamples = async () => {
+    if (!filteredListeningEntries.length) return;
+    const runId = continuousRunRef.current + 1;
+    continuousRunRef.current = runId;
+    setContinuousListening(true);
+    setListeningSubmitted(false);
+    setListeningCorrect(null);
+    setReadStatus('连续播放启动中。每条例句会播放两遍。');
+
+    const startIndex = currentListeningIndex >= 0 ? currentListeningIndex : 0;
+    for (let offset = 0; offset < filteredListeningEntries.length; offset += 1) {
+      if (runId !== continuousRunRef.current) break;
+      const entryIndex = (startIndex + offset) % filteredListeningEntries.length;
+      const entry = filteredListeningEntries[entryIndex];
+      setListeningIndex(entryIndex);
+      setListeningCurrentId(entry.id);
+      setListeningAnswer('');
+      setListeningSubmitted(false);
+      setListeningCorrect(null);
+
+      for (let round = 1; round <= 2; round += 1) {
+        if (runId !== continuousRunRef.current) break;
+        setReadStatus(`连续播放例句：第 ${entryIndex + 1} / ${filteredListeningEntries.length} 条，第 ${round} 遍。`);
+        const completed = await playAudioOnce(
+          listeningAudioManifest.examples[entry.id],
+          entry.example || entry.term,
+          { mode: 'guided', rate: 0.62, pause: 420 },
+          '例句',
+          runId
+        );
+        if (!completed || runId !== continuousRunRef.current) break;
+        if (round < 2) await wait(650);
+      }
+      if (runId !== continuousRunRef.current) break;
+      await wait(900);
+    }
+
+    if (runId === continuousRunRef.current) {
+      setContinuousListening(false);
+      setReadPlaying(false);
+      setReadStatus('连续播放已完成。');
+    }
+  };
+
   const moveTo = (nextIndex) => {
     setIndex((nextIndex + filteredEntries.length) % filteredEntries.length);
     resetCardState();
@@ -784,6 +908,7 @@ function App() {
 
   const moveListeningTo = (nextIndex, targetEntries = filteredListeningEntries, shouldClearSearch = false) => {
     if (!targetEntries.length) return;
+    stopContinuousExamples('');
     const normalizedIndex = (nextIndex + targetEntries.length) % targetEntries.length;
     const nextEntry = targetEntries[normalizedIndex];
     if (shouldClearSearch && query) setQuery('');
@@ -1281,6 +1406,7 @@ function App() {
               type="button"
               className={mode === 'repeat' ? 'active' : ''}
               onClick={() => {
+                stopContinuousExamples('');
                 setReviewCardActive(false);
                 setMode('repeat');
               }}
@@ -1292,6 +1418,7 @@ function App() {
               type="button"
               className={mode === 'recall' ? 'active' : ''}
               onClick={() => {
+                stopContinuousExamples('');
                 setReviewCardActive(false);
                 setMode('recall');
               }}
@@ -1367,6 +1494,10 @@ function App() {
               chooseOption={chooseListeningOption}
               playWord={playListeningWord}
               playExample={playListeningExample}
+              continuousListening={continuousListening}
+              readStatus={readStatus}
+              startContinuousExamples={startContinuousExamples}
+              stopContinuousExamples={stopContinuousExamples}
             />
           ) : reviewCardActive ? (
             <ReviewFlashcard
@@ -1431,7 +1562,11 @@ function ListeningPractice({
   submitListening,
   chooseOption,
   playWord,
-  playExample
+  playExample,
+  continuousListening,
+  readStatus,
+  startContinuousExamples,
+  stopContinuousExamples
 }) {
   const listeningOptions = getListeningOptions(current);
 
@@ -1457,6 +1592,15 @@ function ListeningPractice({
           播放例句
         </button>
       </div>
+      <button
+        type="button"
+        className={`continuous-button ${continuousListening ? 'playing' : ''}`}
+        onClick={continuousListening ? () => stopContinuousExamples() : startContinuousExamples}
+      >
+        {continuousListening ? <Pause size={18} /> : <Play size={18} />}
+        {continuousListening ? '停止连续播放' : '连续播放例句，每句两遍'}
+      </button>
+      {readStatus && <p className="listening-status">{readStatus}</p>}
 
       <form className="listening-form" onSubmit={submitListening}>
         {exercise === 'choice' && (

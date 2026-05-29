@@ -663,6 +663,34 @@ h1 {
   font-weight: 950;
 }
 
+.continuous-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid #d8e0ea;
+  border-radius: 8px;
+  color: #182230;
+  background: #ffffff;
+  font-weight: 950;
+}
+
+.continuous-button.playing {
+  border-color: #f4c95d;
+  color: #182230;
+  background: #f7d977;
+}
+
+.listening-status {
+  margin: -4px 0 0;
+  color: #667085;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
 .listening-hero span,
 .sentence-blank span,
 .listening-input span {
@@ -1133,6 +1161,11 @@ textarea[readonly] {
   .listening-controls .secondary-button {
     min-height: 52px;
     padding: 0 10px;
+  }
+
+  .continuous-button {
+    min-height: 46px;
+    font-size: 17px;
   }
 
   .example-play-button {
