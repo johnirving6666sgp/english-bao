@@ -8109,11 +8109,6 @@ export const vocabChapters = [
         "title": "健康生活",
         "entries": [
           {
-            "term": "单词",
-            "meaning": "释义",
-            "example": "例句"
-          },
-          {
             "term": "nutrition",
             "meaning": "营养",
             "example": "Good nutrition is essential for children's growth and development."

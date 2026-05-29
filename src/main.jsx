@@ -308,6 +308,8 @@ function App() {
   const audioRef = useRef(null);
   const utteranceRef = useRef(null);
   const continuousRunRef = useRef(0);
+  const continuousStartProgressRef = useRef(null);
+  const progressSaveFrozenRef = useRef(false);
 
   const selectedChapter = vocabChapters.find((chapter) => chapter.id === chapterId);
   const sections = selectedChapter?.sections ?? [];
@@ -431,9 +433,22 @@ function App() {
   }, [selectedVoiceName]);
 
   useEffect(() => {
-    if (reviewActive) return;
+    if (reviewActive || continuousListening || continuousRepeat || progressSaveFrozenRef.current) return;
     saveCurrentProgress();
-  }, [chapterId, index, listeningCurrentId, listeningExercise, listeningIndex, listeningScene, mode, query, reviewActive, sectionTitle]);
+  }, [
+    chapterId,
+    continuousListening,
+    continuousRepeat,
+    index,
+    listeningCurrentId,
+    listeningExercise,
+    listeningIndex,
+    listeningScene,
+    mode,
+    query,
+    reviewActive,
+    sectionTitle
+  ]);
 
   function makeCurrentProgress() {
     return {
@@ -456,6 +471,22 @@ function App() {
 
   function saveCurrentProgress() {
     saveProgress(makeCurrentProgress());
+  }
+
+  function freezeContinuousProgress() {
+    continuousStartProgressRef.current = makeCurrentProgress();
+    progressSaveFrozenRef.current = true;
+  }
+
+  function restoreContinuousProgress() {
+    if (continuousStartProgressRef.current) {
+      saveProgress(continuousStartProgressRef.current);
+    }
+  }
+
+  function resumeProgressSaving() {
+    progressSaveFrozenRef.current = false;
+    continuousStartProgressRef.current = null;
   }
 
   function resetCardState() {
@@ -622,12 +653,30 @@ function App() {
     return stoppedAudio;
   };
 
-  const stopContinuousExamples = (message = '连续播放已停止。') => {
+  const stopContinuousExamples = (message = '连续播放已停止。', options = {}) => {
+    const shouldPreserveProgress =
+      options.preserveProgress ?? Boolean(continuousListening || continuousRepeat || continuousStartProgressRef.current);
     continuousRunRef.current += 1;
+    if (shouldPreserveProgress) restoreContinuousProgress();
     setContinuousListening(false);
     setContinuousRepeat(false);
     stopSpeaking();
     if (message) setReadStatus(message);
+  };
+
+  const setPlaybackMediaSession = (title, artist = '英语学习宝') => {
+    if (!('mediaSession' in navigator) || !window.MediaMetadata) return;
+    try {
+      navigator.mediaSession.metadata = new window.MediaMetadata({
+        title,
+        artist,
+        album: 'IELTS Vocabulary Trainer'
+      });
+      navigator.mediaSession.setActionHandler?.('pause', () => stopContinuousExamples());
+      navigator.mediaSession.setActionHandler?.('stop', () => stopContinuousExamples());
+    } catch {
+      // Some mobile browsers expose partial Media Session support.
+    }
   };
 
   const speak = (text, options = {}) => {
@@ -707,6 +756,8 @@ function App() {
 
   const playExample = (text, options = {}) => {
     stopContinuousExamples('');
+    resumeProgressSaving();
+    saveCurrentProgress();
     const audioUrl = exampleAudioManifest[text];
     if (!audioUrl) {
       setReadStatus('使用系统备用朗读。');
@@ -812,6 +863,7 @@ function App() {
       stopSpeaking();
       if (!audioUrl) {
         setReadStatus(`使用系统备用朗读${label}。`);
+        setPlaybackMediaSession(fallbackText, '英语学习宝 · 备用朗读');
         playFallbackOnce(fallbackText, fallbackOptions, label, runId).then(resolve);
         return;
       }
@@ -819,6 +871,7 @@ function App() {
       const audio = new Audio(audioUrl);
       audioRef.current = audio;
       setReadPlaying(true);
+      setPlaybackMediaSession(fallbackText, '英语学习宝 · 连续播放');
       setReadStatus(`正在连续播放${label}。`);
       audio.onended = () => {
         if (audioRef.current === audio) audioRef.current = null;
@@ -841,6 +894,8 @@ function App() {
 
   const playListeningWord = () => {
     stopContinuousExamples('');
+    resumeProgressSaving();
+    saveCurrentProgress();
     playCachedAudio(
       listeningAudioManifest.words[currentListening.id],
       currentListening.term,
@@ -851,6 +906,8 @@ function App() {
 
   const playListeningExample = () => {
     stopContinuousExamples('');
+    resumeProgressSaving();
+    saveCurrentProgress();
     const text = currentListening.example || currentListening.term;
     playCachedAudio(
       listeningAudioManifest.examples[currentListening.id],
@@ -864,6 +921,7 @@ function App() {
     if (!filteredListeningEntries.length) return;
     const runId = continuousRunRef.current + 1;
     continuousRunRef.current = runId;
+    freezeContinuousProgress();
     setContinuousListening(true);
     setContinuousRepeat(false);
     setListeningSubmitted(false);
@@ -899,6 +957,7 @@ function App() {
     }
 
     if (runId === continuousRunRef.current) {
+      restoreContinuousProgress();
       setContinuousListening(false);
       setReadPlaying(false);
       setReadStatus('连续播放已完成。');
@@ -909,6 +968,7 @@ function App() {
     if (!filteredEntries.length) return;
     const runId = continuousRunRef.current + 1;
     continuousRunRef.current = runId;
+    freezeContinuousProgress();
     setContinuousRepeat(true);
     setContinuousListening(false);
     setSpokenText('');
@@ -944,6 +1004,7 @@ function App() {
     }
 
     if (runId === continuousRunRef.current) {
+      restoreContinuousProgress();
       setContinuousRepeat(false);
       setReadPlaying(false);
       setReadStatus('跟读例句连续播放已完成。');
@@ -952,6 +1013,7 @@ function App() {
 
   const moveTo = (nextIndex) => {
     stopContinuousExamples('');
+    resumeProgressSaving();
     setIndex((nextIndex + filteredEntries.length) % filteredEntries.length);
     resetCardState();
   };
@@ -959,6 +1021,7 @@ function App() {
   const moveListeningTo = (nextIndex, targetEntries = filteredListeningEntries, shouldClearSearch = false) => {
     if (!targetEntries.length) return;
     stopContinuousExamples('');
+    resumeProgressSaving();
     const normalizedIndex = (nextIndex + targetEntries.length) % targetEntries.length;
     const nextEntry = targetEntries[normalizedIndex];
     if (shouldClearSearch && query) setQuery('');
@@ -1035,6 +1098,8 @@ function App() {
   const startListening = () => {
     if (!SpeechRecognition || listening) return;
     stopContinuousExamples('');
+    resumeProgressSaving();
+    saveCurrentProgress();
     const shouldDelayStart = readPlaying || Boolean(audioRef.current) || Boolean(utteranceRef.current);
     stoppingRecognitionRef.current = false;
     clearRecognitionTimers();
@@ -1458,6 +1523,7 @@ function App() {
               className={mode === 'repeat' ? 'active' : ''}
               onClick={() => {
                 stopContinuousExamples('');
+                resumeProgressSaving();
                 setReviewCardActive(false);
                 setMode('repeat');
               }}
@@ -1470,6 +1536,7 @@ function App() {
               className={mode === 'recall' ? 'active' : ''}
               onClick={() => {
                 stopContinuousExamples('');
+                resumeProgressSaving();
                 setReviewCardActive(false);
                 setMode('recall');
               }}
@@ -1482,6 +1549,7 @@ function App() {
               className={mode === 'listening' ? 'active' : ''}
               onClick={() => {
                 stopContinuousExamples('');
+                resumeProgressSaving();
                 setReviewCardActive(false);
                 setMode('listening');
               }}
