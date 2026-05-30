@@ -898,7 +898,14 @@ function App() {
     stopSpeaking();
     const runId = speechRunRef.current;
     const voice = activeVoice();
-    const chunks = isAppleMobileBrowser
+    const chunks = modeName === 'essay'
+      ? splitForClearSpeech(text).map((chunk) => ({
+          text: chunk,
+          rate: config.rate ?? 0.68,
+          pitch: 1,
+          pause: config.pause ?? 520
+        }))
+      : isAppleMobileBrowser
       ? [{ text, rate: config.rate ?? 0.72, pitch: 1, pause: 0 }]
       : modeName === 'human'
         ? [{ text, rate: config.rate ?? 0.82, pitch: 1, pause: 0 }]
@@ -1124,6 +1131,20 @@ function App() {
       { mode: 'guided', rate: 0.62, pause: 420 },
       '例句'
     );
+  };
+
+  const playWritingText = (text, label) => {
+    if (!text) return;
+    stopContinuousExamples('');
+    resumeProgressSaving();
+    setPlaybackMediaSession(label, '英语学习宝 · 写作朗读');
+    setReadStatus(`正在朗读${label}。`);
+    speak(text, { mode: 'essay', rate: 0.68, pause: 520 });
+  };
+
+  const stopWritingRead = () => {
+    stopSpeaking();
+    setReadStatus('作文朗读已停止。');
   };
 
   const startContinuousExamples = async () => {
@@ -2010,6 +2031,10 @@ function App() {
               error={writingError}
               feedback={writingFeedback}
               records={writingRecords}
+              readStatus={readStatus}
+              readPlaying={readPlaying}
+              playWritingText={playWritingText}
+              stopWritingRead={stopWritingRead}
             />
           ) : mode === 'listening' ? (
             <ListeningPractice
@@ -2216,7 +2241,11 @@ function WritingPractice({
   loading,
   error,
   feedback,
-  records
+  records,
+  readStatus,
+  readPlaying,
+  playWritingText,
+  stopWritingRead
 }) {
   const bandRows = feedback?.scores
     ? [
@@ -2302,13 +2331,39 @@ function WritingPractice({
           <FeedbackList title="最影响分数的问题" items={feedback.keyIssues} />
           <FeedbackList title="可以保留的优点" items={feedback.strengths} />
 
+          {readStatus && <p className="writing-read-status">{readStatus}</p>}
+          {readPlaying && (
+            <div className="writing-read-stop">
+              <button type="button" className="secondary-button" onClick={stopWritingRead}>
+                <Pause size={18} />
+                停止朗读
+              </button>
+            </div>
+          )}
+
           <div className="writing-comparison">
             <div>
               <span>保守改写</span>
+              <button
+                type="button"
+                className="secondary-button writing-read-button"
+                onClick={() => playWritingText(feedback.conservativeRewrite, '保守改写版作文')}
+              >
+                <Volume2 size={18} />
+                朗读保守改写
+              </button>
               <p>{feedback.conservativeRewrite}</p>
             </div>
             <div>
               <span>7分示范方向</span>
+              <button
+                type="button"
+                className="secondary-button writing-read-button"
+                onClick={() => playWritingText(feedback.bandSevenVersion, '7分示范版作文')}
+              >
+                <Volume2 size={18} />
+                朗读7分示范
+              </button>
               <p>{feedback.bandSevenVersion}</p>
             </div>
           </div>

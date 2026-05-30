@@ -1121,6 +1121,26 @@ textarea[readonly] {
   gap: 12px;
 }
 
+.writing-read-button {
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.writing-read-status {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  color: #30628e;
+  background: #eff6ff;
+  font-weight: 850;
+}
+
+.writing-read-stop {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .writing-comparison p,
 .writing-history p {
   margin: 0;
