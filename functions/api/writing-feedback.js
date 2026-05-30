@@ -6,6 +6,59 @@ const jsonResponse = (body, status = 200) =>
     }
   });
 
+const hashText = async (text) => {
+  const data = new TextEncoder().encode(text);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('')
+    .slice(0, 32);
+};
+
+const saveBandSevenEssay = async ({ env, payload, essay, wordCount, feedback }) => {
+  if (!env.WRITING_CACHE || !feedback?.bandSevenVersion) return feedback;
+
+  try {
+    const cacheId = await hashText(
+      [
+        payload.topic?.id || payload.topic?.question || 'writing-topic',
+        essay,
+        feedback.bandSevenVersion
+      ].join('\n---\n')
+    );
+    const essayKey = `writing:band7:${cacheId}`;
+    const audioKey = `writing:band7-audio:${cacheId}`;
+
+    await env.WRITING_CACHE.put(
+      essayKey,
+      JSON.stringify({
+        createdAt: new Date().toISOString(),
+        topic: payload.topic || null,
+        sourceEssay: essay,
+        sourceWordCount: wordCount,
+        bandSevenVersion: feedback.bandSevenVersion,
+        conservativeRewrite: feedback.conservativeRewrite || '',
+        audioKey
+      }),
+      {
+        metadata: {
+          type: 'writing-band-seven',
+          topicId: payload.topic?.id || '',
+          audioKey
+        }
+      }
+    );
+
+    return {
+      ...feedback,
+      bandSevenCacheKey: essayKey,
+      bandSevenAudioKey: audioKey
+    };
+  } catch {
+    return feedback;
+  }
+};
+
 const fallbackFeedback = (reason) => ({
   overallBand: '暂不可用',
   scores: {
@@ -115,7 +168,14 @@ export async function onRequestPost({ request, env }) {
 
     const text = data.choices?.[0]?.message?.content || '';
     const parsed = JSON.parse(text);
-    return jsonResponse(parsed);
+    const saved = await saveBandSevenEssay({
+      env,
+      payload,
+      essay,
+      wordCount: payload.wordCount,
+      feedback: parsed
+    });
+    return jsonResponse(saved);
   } catch (error) {
     return jsonResponse(fallbackFeedback(error.message || 'AI 批改服务暂时不可用。'), 200);
   }

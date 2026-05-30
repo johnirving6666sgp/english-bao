@@ -899,6 +899,7 @@ function App() {
   const cleanupAudio = (audio) => {
     audio.onended = null;
     audio.onerror = null;
+    const objectUrl = audio.dataset?.objectUrl;
     try {
       audio.pause();
       audio.currentTime = 0;
@@ -906,6 +907,9 @@ function App() {
       audio.load();
     } catch {
       // Mobile browsers can throw while tearing down an active media session.
+    }
+    if (objectUrl) {
+      URL.revokeObjectURL(objectUrl);
     }
   };
 
@@ -1213,12 +1217,90 @@ function App() {
     );
   };
 
-  const playWritingText = (text, label) => {
+  const playWritingText = async (text, label, options = {}) => {
     if (!text) return;
     stopContinuousExamples('');
     setPlaybackMediaSession(label, '英语学习宝 · 写作朗读');
-    setReadStatus(`正在朗读${label}。`);
-    speak(text, { mode: 'essay', rate: 0.68, pause: 520 });
+
+    if (!options.highQuality) {
+      setReadStatus(`正在朗读${label}。`);
+      speak(text, { mode: 'essay', rate: 0.68, pause: 520 });
+      return;
+    }
+
+    stopSpeaking();
+    setReadPlaying(true);
+    setReadStatus(`正在准备${label}高品质朗读。`);
+
+    try {
+      if (options.cacheKey || options.audioKey) {
+        const params = new URLSearchParams({ label });
+        if (options.cacheKey) params.set('cacheKey', options.cacheKey);
+        if (options.audioKey) params.set('audioKey', options.audioKey);
+        const audio = new Audio(`/api/writing-tts?${params.toString()}`);
+        audio.preload = 'auto';
+        audio.volume = 1;
+        audioRef.current = audio;
+        setReadStatus(`正在播放${label}高品质朗读。`);
+        audio.onended = () => {
+          if (audioRef.current === audio) audioRef.current = null;
+          cleanupAudio(audio);
+          setReadPlaying(false);
+          setReadStatus(`${label}朗读完成。`);
+        };
+        audio.onerror = () => {
+          if (audioRef.current === audio) audioRef.current = null;
+          cleanupAudio(audio);
+          setReadPlaying(false);
+          setReadStatus('高品质音频播放失败，已改用系统朗读。');
+          speak(text, { mode: 'essay', rate: 0.68, pause: 520 });
+        };
+        await audio.play();
+        return;
+      }
+
+      const response = await fetch('/api/writing-tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text,
+          label,
+          cacheKey: options.cacheKey,
+          audioKey: options.audioKey
+        })
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || '高品质朗读暂时不可用。');
+      }
+
+      const blob = await response.blob();
+      const audioUrl = URL.createObjectURL(blob);
+      const audio = new Audio(audioUrl);
+      audio.dataset.objectUrl = audioUrl;
+      audio.preload = 'auto';
+      audio.volume = 1;
+      audioRef.current = audio;
+      setReadStatus(`正在播放${label}高品质朗读。`);
+      audio.onended = () => {
+        if (audioRef.current === audio) audioRef.current = null;
+        cleanupAudio(audio);
+        setReadPlaying(false);
+        setReadStatus(`${label}朗读完成。`);
+      };
+      audio.onerror = () => {
+        if (audioRef.current === audio) audioRef.current = null;
+        cleanupAudio(audio);
+        setReadPlaying(false);
+        setReadStatus('高品质音频播放失败，已改用系统朗读。');
+        speak(text, { mode: 'essay', rate: 0.68, pause: 520 });
+      };
+      await audio.play();
+    } catch {
+      setReadPlaying(false);
+      setReadStatus('高品质朗读暂时不可用，已改用系统朗读。');
+      speak(text, { mode: 'essay', rate: 0.68, pause: 520 });
+    }
   };
 
   const stopWritingRead = () => {
@@ -2880,10 +2962,16 @@ function WritingPractice({
               <button
                 type="button"
                 className="secondary-button writing-read-button"
-                onClick={() => playWritingText(feedback.bandSevenVersion, '7分示范版作文')}
+                onClick={() =>
+                  playWritingText(feedback.bandSevenVersion, '7分示范版作文', {
+                    highQuality: true,
+                    cacheKey: feedback.bandSevenCacheKey,
+                    audioKey: feedback.bandSevenAudioKey
+                  })
+                }
               >
                 <Volume2 size={18} />
-                朗读7分示范
+                高品质朗读7分示范
               </button>
               <p>{feedback.bandSevenVersion}</p>
             </div>

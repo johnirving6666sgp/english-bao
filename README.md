@@ -11,6 +11,7 @@
 - 跟读识别：显示浏览器识别内容并给出参考分
 - 造句表达：显示中文例句，输入英文表达，结束后显示原例句
 - 小章节进度统计和完成鼓励
+- 写作训练：提交后保存 7 分示范范文，并可生成/缓存高品质朗读音频
 
 ## 启动
 
@@ -65,5 +66,11 @@ npm run audio:examples
 ```bash
 OPENAI_TTS_MODEL=gpt-4o-mini-tts OPENAI_TTS_VOICE=coral npm run audio:examples
 ```
+
+线上写作 7 分范文和高品质朗读音频使用 Cloudflare Pages Functions。需要配置：
+
+- `OPENAI_API_KEY`
+- `WRITING_CACHE` KV binding
+- 可选：`OPENAI_TTS_MODEL`、`OPENAI_TTS_VOICE`、`OPENAI_WRITING_TTS_VOICE`
 
 语音识别依赖浏览器 Web Speech API，建议使用 Chrome 或支持麦克风权限的现代浏览器。
