@@ -561,6 +561,11 @@ function App() {
       ? savedListeningPosition
       : Math.min(listeningIndex, Math.max(filteredListeningEntries.length - 1, 0));
   const currentListening = filteredListeningEntries[currentListeningIndex];
+  const shouldUseSceneContinuation = () =>
+    mode === 'listening' &&
+    Boolean(normalize(query)) &&
+    sceneListeningEntries.length > 1 &&
+    sceneListeningEntries.some((entry) => entry.id === currentListening.id);
   const sectionEntries = useMemo(
     () =>
       allEntries.filter(
@@ -1155,20 +1160,28 @@ function App() {
   };
 
   const startContinuousExamples = async () => {
-    if (!filteredListeningEntries.length) return;
+    const useSceneList = shouldUseSceneContinuation();
+    const playbackEntries = useSceneList ? sceneListeningEntries : filteredListeningEntries;
+    if (!playbackEntries.length) return;
+    const sceneStartIndex = playbackEntries.findIndex((entry) => entry.id === currentListening.id);
     const runId = continuousRunRef.current + 1;
     continuousRunRef.current = runId;
+    if (useSceneList) {
+      setQuery('');
+      setListeningIndex(sceneStartIndex >= 0 ? sceneStartIndex : 0);
+      setListeningCurrentId(currentListening.id);
+    }
     setContinuousListening(true);
     setContinuousRepeat(false);
     setListeningSubmitted(false);
     setListeningCorrect(null);
     setReadStatus('连续播放启动中。每条例句会播放两遍。');
 
-    const startIndex = currentListeningIndex >= 0 ? currentListeningIndex : 0;
-    for (let offset = 0; offset < filteredListeningEntries.length; offset += 1) {
+    const startIndex = sceneStartIndex >= 0 ? sceneStartIndex : currentListeningIndex >= 0 ? currentListeningIndex : 0;
+    for (let offset = 0; offset < playbackEntries.length; offset += 1) {
       if (runId !== continuousRunRef.current) break;
-      const entryIndex = (startIndex + offset) % filteredListeningEntries.length;
-      const entry = filteredListeningEntries[entryIndex];
+      const entryIndex = (startIndex + offset) % playbackEntries.length;
+      const entry = playbackEntries[entryIndex];
       setListeningIndex(entryIndex);
       setListeningCurrentId(entry.id);
       saveProgress({
@@ -1183,7 +1196,7 @@ function App() {
 
       for (let round = 1; round <= 2; round += 1) {
         if (runId !== continuousRunRef.current) break;
-        setReadStatus(`连续播放例句：第 ${entryIndex + 1} / ${filteredListeningEntries.length} 条，第 ${round} 遍。`);
+        setReadStatus(`连续播放例句：第 ${entryIndex + 1} / ${playbackEntries.length} 条，第 ${round} 遍。`);
         const completed = await playAudioOnce(
           listeningAudioManifest.examples[entry.id],
           entry.example || entry.term,
@@ -1275,7 +1288,7 @@ function App() {
   };
 
   const moveListeningBy = (step) => {
-    const useSceneList = filteredListeningEntries.length < 2 && sceneListeningEntries.length > 1;
+    const useSceneList = shouldUseSceneContinuation() || (filteredListeningEntries.length < 2 && sceneListeningEntries.length > 1);
     const targetEntries = useSceneList ? sceneListeningEntries : filteredListeningEntries;
     if (targetEntries.length < 2) return;
     const currentPosition = targetEntries.findIndex((entry) => entry.id === currentListening.id);
@@ -1291,7 +1304,7 @@ function App() {
   };
 
   const randomListeningCard = () => {
-    const useSceneList = filteredListeningEntries.length < 2 && sceneListeningEntries.length > 1;
+    const useSceneList = shouldUseSceneContinuation() || (filteredListeningEntries.length < 2 && sceneListeningEntries.length > 1);
     const targetEntries = useSceneList ? sceneListeningEntries : filteredListeningEntries;
     if (targetEntries.length < 2) return;
     const currentPosition = targetEntries.findIndex((entry) => entry.id === currentListening.id);
