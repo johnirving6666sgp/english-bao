@@ -691,6 +691,37 @@ h1 {
   line-height: 1.45;
 }
 
+.continuous-example-card {
+  display: grid;
+  gap: 5px;
+  padding: 12px 14px;
+  border: 1px solid #d9e1ea;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.continuous-example-card span {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.continuous-example-card strong {
+  color: #182230;
+  font-size: 20px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.continuous-example-card p {
+  margin: 0;
+  color: #344054;
+  font-size: 16px;
+  font-weight: 750;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 .listening-hero span,
 .sentence-blank span,
 .listening-input span {
@@ -1380,6 +1411,19 @@ textarea[readonly] {
   .listening-form,
   .listening-choice-panel {
     gap: 8px;
+  }
+
+  .continuous-example-card {
+    padding: 10px 12px;
+  }
+
+  .continuous-example-card strong {
+    font-size: 18px;
+  }
+
+  .continuous-example-card p {
+    font-size: 14px;
+    line-height: 1.35;
   }
 
   .listening-option-grid {

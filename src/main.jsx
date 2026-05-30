@@ -2166,6 +2166,13 @@ function ListeningPractice({
         {continuousListening ? '停止连续播放' : '连续播放例句，每句两遍'}
       </button>
       {readStatus && <p className="listening-status">{readStatus}</p>}
+      {continuousListening && (
+        <div className="continuous-example-card">
+          <span>当前例句</span>
+          <strong>{current.term}</strong>
+          <p>{current.example || '暂无例句'}</p>
+        </div>
+      )}
 
       <form className="listening-form" onSubmit={submitListening}>
         {exercise === 'choice' && (
