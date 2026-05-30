@@ -1236,6 +1236,7 @@ function App() {
     const nextIndex = (currentPosition + step + speakingTopics.length) % speakingTopics.length;
     const next = speakingTopics[nextIndex];
     setSpeakingTopicId(next.id);
+    setSpeakingTranscript('');
     setSpeakingFeedback(null);
     setSpeakingError('');
     setSpeakingStatus('');
@@ -1248,6 +1249,7 @@ function App() {
     if (next === currentPosition) next = (next + 1) % speakingTopics.length;
     const topic = speakingTopics[next];
     setSpeakingTopicId(topic.id);
+    setSpeakingTranscript('');
     setSpeakingFeedback(null);
     setSpeakingError('');
     setSpeakingStatus('');
@@ -1935,6 +1937,7 @@ function App() {
                 value={currentSpeakingTopic.id}
                 onChange={(event) => {
                   setSpeakingTopicId(event.target.value);
+                  setSpeakingTranscript('');
                   setSpeakingFeedback(null);
                   setSpeakingError('');
                   setSpeakingStatus('');
