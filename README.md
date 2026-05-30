@@ -26,6 +26,8 @@ npm run dev
 http://localhost:5173/
 ```
 
+本地开发时，Vite 会把 `/api/*` 代理到线上 Cloudflare Pages Functions，方便在本地页面直接测试写作、口语和高品质朗读。
+
 ## 构建
 
 ```bash
