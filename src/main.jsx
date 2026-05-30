@@ -470,14 +470,14 @@ function App() {
   const [listeningLastSessionReview, setListeningLastSessionReview] = useState(() =>
     loadLastSessionReview(LISTENING_LAST_SESSION_REVIEW_STORAGE_KEY)
   );
-  const [writingCategory, setWritingCategory] = useState('全部题材');
-  const [writingTopicId, setWritingTopicId] = useState(writingTopics[0].id);
-  const [writingEssay, setWritingEssay] = useState('');
+  const [writingCategory, setWritingCategory] = useState(savedProgress.writingCategory || '全部题材');
+  const [writingTopicId, setWritingTopicId] = useState(savedProgress.writingTopicId || writingTopics[0].id);
+  const [writingEssay, setWritingEssay] = useState(savedProgress.writingEssay || '');
   const [writingFeedback, setWritingFeedback] = useState(null);
   const [writingError, setWritingError] = useState('');
   const [writingLoading, setWritingLoading] = useState(false);
   const [writingStartedAt, setWritingStartedAt] = useState(null);
-  const [writingElapsed, setWritingElapsed] = useState(0);
+  const [writingElapsed, setWritingElapsed] = useState(savedProgress.writingElapsed || 0);
   const [writingRecords, setWritingRecords] = useState(loadWritingRecords);
   const [reviewSourceIds, setReviewSourceIds] = useState([]);
   const [sessionSummary, setSessionSummary] = useState(null);
@@ -492,8 +492,6 @@ function App() {
   const audioRef = useRef(null);
   const utteranceRef = useRef(null);
   const continuousRunRef = useRef(0);
-  const continuousStartProgressRef = useRef(null);
-  const progressSaveFrozenRef = useRef(false);
 
   const selectedChapter = vocabChapters.find((chapter) => chapter.id === chapterId);
   const sections = selectedChapter?.sections ?? [];
@@ -552,7 +550,8 @@ function App() {
   const currentWritingTopic =
     writingTopics.find((topic) => topic.id === writingTopicId) || filteredWritingTopics[0] || writingTopics[0];
   const writingWordCount = writingEssay.trim() ? writingEssay.trim().split(/\s+/).filter(Boolean).length : 0;
-  const writingTimerText = `${Math.floor(writingElapsed / 60)}:${String(writingElapsed % 60).padStart(2, '0')}`;
+  const currentWritingElapsed = writingStartedAt ? Math.floor((Date.now() - writingStartedAt) / 1000) : writingElapsed;
+  const writingTimerText = `${Math.floor(currentWritingElapsed / 60)}:${String(currentWritingElapsed % 60).padStart(2, '0')}`;
 
   const current = filteredEntries[index % filteredEntries.length];
   const savedListeningPosition = filteredListeningEntries.findIndex((entry) => entry.id === listeningCurrentId);
@@ -642,7 +641,7 @@ function App() {
   }, [selectedVoiceName]);
 
   useEffect(() => {
-    if (reviewActive || continuousListening || continuousRepeat || progressSaveFrozenRef.current) return;
+    if (reviewActive) return;
     saveCurrentProgress();
   }, [
     chapterId,
@@ -656,7 +655,11 @@ function App() {
     mode,
     query,
     reviewActive,
-    sectionTitle
+    sectionTitle,
+    writingCategory,
+    writingElapsed,
+    writingEssay,
+    writingTopicId
   ]);
 
   function makeCurrentProgress() {
@@ -670,7 +673,11 @@ function App() {
       listeningIndex,
       listeningCurrentId: currentListening.id,
       listeningExercise,
-      currentId: current.id
+      currentId: current.id,
+      writingCategory,
+      writingTopicId: currentWritingTopic.id,
+      writingEssay,
+      writingElapsed: currentWritingElapsed
     };
   }
 
@@ -680,22 +687,6 @@ function App() {
 
   function saveCurrentProgress() {
     saveProgress(makeCurrentProgress());
-  }
-
-  function freezeContinuousProgress() {
-    continuousStartProgressRef.current = makeCurrentProgress();
-    progressSaveFrozenRef.current = true;
-  }
-
-  function restoreContinuousProgress() {
-    if (continuousStartProgressRef.current) {
-      saveProgress(continuousStartProgressRef.current);
-    }
-  }
-
-  function resumeProgressSaving() {
-    progressSaveFrozenRef.current = false;
-    continuousStartProgressRef.current = null;
   }
 
   function resetCardState() {
@@ -862,11 +853,8 @@ function App() {
     return stoppedAudio;
   };
 
-  const stopContinuousExamples = (message = '连续播放已停止。', options = {}) => {
-    const shouldPreserveProgress =
-      options.preserveProgress ?? Boolean(continuousListening || continuousRepeat || continuousStartProgressRef.current);
+  const stopContinuousExamples = (message = '连续播放已停止。') => {
     continuousRunRef.current += 1;
-    if (shouldPreserveProgress) restoreContinuousProgress();
     setContinuousListening(false);
     setContinuousRepeat(false);
     stopSpeaking();
@@ -972,7 +960,6 @@ function App() {
 
   const playExample = (text, options = {}) => {
     stopContinuousExamples('');
-    resumeProgressSaving();
     saveCurrentProgress();
     const audioUrl = exampleAudioManifest[text];
     if (!audioUrl) {
@@ -1110,7 +1097,6 @@ function App() {
 
   const playListeningWord = () => {
     stopContinuousExamples('');
-    resumeProgressSaving();
     saveCurrentProgress();
     playCachedAudio(
       listeningAudioManifest.words[currentListening.id],
@@ -1122,7 +1108,6 @@ function App() {
 
   const playListeningExample = () => {
     stopContinuousExamples('');
-    resumeProgressSaving();
     saveCurrentProgress();
     const text = currentListening.example || currentListening.term;
     playCachedAudio(
@@ -1136,7 +1121,6 @@ function App() {
   const playWritingText = (text, label) => {
     if (!text) return;
     stopContinuousExamples('');
-    resumeProgressSaving();
     setPlaybackMediaSession(label, '英语学习宝 · 写作朗读');
     setReadStatus(`正在朗读${label}。`);
     speak(text, { mode: 'essay', rate: 0.68, pause: 520 });
@@ -1151,7 +1135,6 @@ function App() {
     if (!filteredListeningEntries.length) return;
     const runId = continuousRunRef.current + 1;
     continuousRunRef.current = runId;
-    freezeContinuousProgress();
     setContinuousListening(true);
     setContinuousRepeat(false);
     setListeningSubmitted(false);
@@ -1165,6 +1148,12 @@ function App() {
       const entry = filteredListeningEntries[entryIndex];
       setListeningIndex(entryIndex);
       setListeningCurrentId(entry.id);
+      saveProgress({
+        ...makeCurrentProgress(),
+        mode: 'listening',
+        listeningIndex: entryIndex,
+        listeningCurrentId: entry.id
+      });
       setListeningAnswer('');
       setListeningSubmitted(false);
       setListeningCorrect(null);
@@ -1187,7 +1176,6 @@ function App() {
     }
 
     if (runId === continuousRunRef.current) {
-      restoreContinuousProgress();
       setContinuousListening(false);
       setReadPlaying(false);
       setReadStatus('连续播放已完成。');
@@ -1198,7 +1186,6 @@ function App() {
     if (!filteredEntries.length) return;
     const runId = continuousRunRef.current + 1;
     continuousRunRef.current = runId;
-    freezeContinuousProgress();
     setContinuousRepeat(true);
     setContinuousListening(false);
     setSpokenText('');
@@ -1212,6 +1199,12 @@ function App() {
       const entryIndex = (startIndex + offset) % filteredEntries.length;
       const entry = filteredEntries[entryIndex];
       setIndex(entryIndex);
+      saveProgress({
+        ...makeCurrentProgress(),
+        mode: 'repeat',
+        index: entryIndex,
+        currentId: entry.id
+      });
       setSpokenText('');
       setSpeechScore(null);
       setSpeechStatus('');
@@ -1234,7 +1227,6 @@ function App() {
     }
 
     if (runId === continuousRunRef.current) {
-      restoreContinuousProgress();
       setContinuousRepeat(false);
       setReadPlaying(false);
       setReadStatus('跟读例句连续播放已完成。');
@@ -1243,7 +1235,6 @@ function App() {
 
   const moveTo = (nextIndex) => {
     stopContinuousExamples('');
-    resumeProgressSaving();
     setIndex((nextIndex + filteredEntries.length) % filteredEntries.length);
     resetCardState();
   };
@@ -1251,7 +1242,6 @@ function App() {
   const moveListeningTo = (nextIndex, targetEntries = filteredListeningEntries, shouldClearSearch = false) => {
     if (!targetEntries.length) return;
     stopContinuousExamples('');
-    resumeProgressSaving();
     const normalizedIndex = (nextIndex + targetEntries.length) % targetEntries.length;
     const nextEntry = targetEntries[normalizedIndex];
     if (shouldClearSearch && query) setQuery('');
@@ -1328,7 +1318,6 @@ function App() {
   const startListening = () => {
     if (!SpeechRecognition || listening) return;
     stopContinuousExamples('');
-    resumeProgressSaving();
     saveCurrentProgress();
     const shouldDelayStart = readPlaying || Boolean(audioRef.current) || Boolean(utteranceRef.current);
     stoppingRecognitionRef.current = false;
@@ -1915,7 +1904,6 @@ function App() {
               className={mode === 'repeat' ? 'active' : ''}
               onClick={() => {
                 stopContinuousExamples('');
-                resumeProgressSaving();
                 setReviewCardActive(false);
                 setMode('repeat');
               }}
@@ -1928,7 +1916,6 @@ function App() {
               className={mode === 'recall' ? 'active' : ''}
               onClick={() => {
                 stopContinuousExamples('');
-                resumeProgressSaving();
                 setReviewCardActive(false);
                 setMode('recall');
               }}
@@ -1941,7 +1928,6 @@ function App() {
               className={mode === 'listening' ? 'active' : ''}
               onClick={() => {
                 stopContinuousExamples('');
-                resumeProgressSaving();
                 setReviewCardActive(false);
                 setMode('listening');
               }}
@@ -1954,7 +1940,6 @@ function App() {
               className={mode === 'writing' ? 'active' : ''}
               onClick={() => {
                 stopContinuousExamples('');
-                resumeProgressSaving();
                 setReviewCardActive(false);
                 setMode('writing');
               }}
