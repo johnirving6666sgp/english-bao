@@ -985,12 +985,14 @@ textarea[readonly] {
   gap: 10px;
 }
 
-.writing-layout {
+.writing-layout,
+.speaking-layout {
   display: grid;
   gap: 18px;
 }
 
-.writing-prompt {
+.writing-prompt,
+.speaking-prompt {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 16px;
@@ -1002,10 +1004,12 @@ textarea[readonly] {
 }
 
 .writing-prompt span,
+.speaking-prompt span,
 .writing-editor span,
 .writing-score span,
 .feedback-list span,
 .writing-history > span,
+.speaking-polished span,
 .writing-comparison span,
 .writing-toolbar span {
   display: block;
@@ -1014,24 +1018,28 @@ textarea[readonly] {
   font-weight: 900;
 }
 
-.writing-prompt span {
+.writing-prompt span,
+.speaking-prompt span {
   color: #dbe8f4;
 }
 
-.writing-prompt strong {
+.writing-prompt strong,
+.speaking-prompt strong {
   display: block;
   max-width: 960px;
   font-size: clamp(22px, 3vw, 34px);
   line-height: 1.25;
 }
 
-.writing-prompt p {
+.writing-prompt p,
+.speaking-prompt p {
   margin: 12px 0 0;
   color: #eaf1f8;
   line-height: 1.45;
 }
 
 .writing-form,
+.speaking-form,
 .writing-editor {
   display: grid;
   gap: 12px;
@@ -1056,6 +1064,7 @@ textarea[readonly] {
 .writing-score span,
 .feedback-list span,
 .writing-history > span,
+.speaking-polished span,
 .writing-comparison span {
   color: #667085;
 }
@@ -1072,6 +1081,32 @@ textarea[readonly] {
 .writing-editor textarea {
   min-height: 280px;
   font-size: 17px;
+}
+
+.speaking-structure {
+  display: grid;
+  min-width: 260px;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.speaking-structure em {
+  color: #ffffff;
+  font-style: normal;
+  font-weight: 850;
+}
+
+.speaking-status {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #d9e1ea;
+  border-radius: 8px;
+  color: #475467;
+  background: #f8fafc;
+  font-weight: 800;
 }
 
 .writing-error {
@@ -1113,6 +1148,7 @@ textarea[readonly] {
 }
 
 .band-grid div,
+.speaking-polished,
 .writing-comparison > div,
 .writing-history div {
   padding: 14px;
@@ -1173,6 +1209,7 @@ textarea[readonly] {
 }
 
 .writing-comparison p,
+.speaking-polished p,
 .writing-history p {
   margin: 0;
   color: #344054;
@@ -1195,6 +1232,7 @@ textarea[readonly] {
   .result-panel,
   .voice-panel,
   .writing-prompt,
+  .speaking-prompt,
   .writing-toolbar,
   .writing-comparison,
   .band-grid {

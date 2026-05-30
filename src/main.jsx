@@ -40,8 +40,10 @@ const LAST_SESSION_REVIEW_STORAGE_KEY = 'english-bao-last-session-review-v1';
 const LISTENING_DAILY_STUDY_STORAGE_KEY = 'english-bao-listening-daily-study-v1';
 const LISTENING_LAST_SESSION_REVIEW_STORAGE_KEY = 'english-bao-listening-last-session-review-v1';
 const WRITING_RECORDS_STORAGE_KEY = 'english-bao-writing-records-v1';
+const SPEAKING_RECORDS_STORAGE_KEY = 'english-bao-speaking-records-v1';
 const MAX_REVIEW_ITEMS = 80;
 const MAX_WRITING_RECORDS = 30;
+const MAX_SPEAKING_RECORDS = 40;
 
 const todayKey = () => {
   const date = new Date();
@@ -342,6 +344,39 @@ const writingTopics = [
   }
 ];
 
+const speakingTopics = [
+  { id: 'day-01', day: 1, category: '基础表达', title: 'Introduce myself', prompt: 'Introduce yourself, your work, and why you want to improve your spoken English.', structure: ['My name is...', 'I mainly work on...', 'My English goal is...'] },
+  { id: 'day-02', day: 2, category: '工作生活', title: 'My daily work', prompt: 'Describe your daily work and the tasks you usually need to manage.', structure: ['My daily work includes...', 'The most important task is...', 'I need to communicate with...'] },
+  { id: 'day-03', day: 3, category: '投资表达', title: 'My investment strategy', prompt: 'Explain your investment strategy in simple English.', structure: ['My strategy is...', 'I usually look at...', 'The biggest risk is...'] },
+  { id: 'day-04', day: 4, category: '公司分析', title: 'A company I recently studied', prompt: 'Talk about a company you recently studied and what attracted your attention.', structure: ['This company mainly does...', 'What interests me is...', 'I still need to understand...'] },
+  { id: 'day-05', day: 5, category: '管理场景', title: 'A business problem I’m solving', prompt: 'Describe a business problem you are solving now.', structure: ['The problem is...', 'The reason is...', 'My next step is...'] },
+  { id: 'day-06', day: 6, category: '管理场景', title: 'How I manage different teams', prompt: 'Explain how you manage teams or projects with different priorities.', structure: ['Different teams need...', 'I track progress by...', 'The challenge is...'] },
+  { id: 'day-07', day: 7, category: '学习复盘', title: 'My English learning goal', prompt: 'Talk about your English learning goal for the next month.', structure: ['My goal is...', 'I want to improve...', 'I will practise by...'] },
+  { id: 'day-08', day: 8, category: '公司分析', title: 'A company with strong customers', prompt: 'Describe a company with strong customers and why customer quality matters.', structure: ['The company serves...', 'Its customer base is...', 'This matters because...'] },
+  { id: 'day-09', day: 9, category: '管理判断', title: 'A company with weak execution', prompt: 'Talk about a company or team with weak execution and the impact it creates.', structure: ['The issue is not...', 'The real problem is...', 'This affects...'] },
+  { id: 'day-10', day: 10, category: '商业表达', title: 'Why customer quality matters', prompt: 'Explain why customer quality is important in business.', structure: ['High-quality customers...', 'They can help...', 'The risk is...'] },
+  { id: 'day-11', day: 11, category: '投资表达', title: 'How I evaluate management', prompt: 'Explain how you evaluate a company’s management team.', structure: ['I look at...', 'Good management usually...', 'A warning sign is...'] },
+  { id: 'day-12', day: 12, category: '行业观点', title: 'My view on electric vehicles', prompt: 'Share your view on the electric vehicle industry.', structure: ['The EV market is...', 'One opportunity is...', 'One risk is...'] },
+  { id: 'day-13', day: 13, category: 'AI工具', title: 'My view on AI tools', prompt: 'Explain how AI tools affect your work or business.', structure: ['AI tools help me...', 'They are useful for...', 'But they cannot...'] },
+  { id: 'day-14', day: 14, category: '投资表达', title: 'How I make investment decisions', prompt: 'Describe your process for making investment decisions.', structure: ['First, I look at...', 'Then I check...', 'Finally, I decide...'] },
+  { id: 'day-15', day: 15, category: '复盘纠错', title: 'A mistake I made in business', prompt: 'Talk about a business mistake and what you learned from it.', structure: ['I once...', 'The mistake was...', 'I learned that...'] },
+  { id: 'day-16', day: 16, category: '复盘纠错', title: 'A mistake I made in investing', prompt: 'Talk about an investing mistake and the lesson behind it.', structure: ['I invested in...', 'I misunderstood...', 'Now I pay more attention to...'] },
+  { id: 'day-17', day: 17, category: 'AI工具', title: 'How I use agents at work', prompt: 'Explain how you use AI agents or automation in your work.', structure: ['I use agents to...', 'This saves time because...', 'The next improvement is...'] },
+  { id: 'day-18', day: 18, category: '执行管理', title: 'How I track key tasks', prompt: 'Describe how you track important tasks across projects.', structure: ['I track tasks by...', 'The key information is...', 'This helps me...'] },
+  { id: 'day-19', day: 19, category: '市场机会', title: 'A market opportunity I’m watching', prompt: 'Talk about a market opportunity you are watching.', structure: ['I’m watching...', 'The opportunity comes from...', 'I need to verify...'] },
+  { id: 'day-20', day: 20, category: '风险判断', title: 'A risk I’m concerned about', prompt: 'Describe a risk you are concerned about in business or investing.', structure: ['The risk is...', 'It may affect...', 'I can reduce the risk by...'] },
+  { id: 'day-21', day: 21, category: '销售增长', title: 'How to improve a company’s sales', prompt: 'Explain how a company can improve sales.', structure: ['The company should...', 'It needs to understand...', 'A practical step is...'] },
+  { id: 'day-22', day: 22, category: '执行管理', title: 'How to improve execution', prompt: 'Talk about how to improve execution in a team.', structure: ['Execution improves when...', 'Managers should...', 'The team needs...'] },
+  { id: 'day-23', day: 23, category: '团队管理', title: 'How to motivate a team', prompt: 'Explain how to motivate a team effectively.', structure: ['People are motivated by...', 'A manager should...', 'The most important thing is...'] },
+  { id: 'day-24', day: 24, category: '客户沟通', title: 'How to talk to a difficult customer', prompt: 'Describe how you would communicate with a difficult customer.', structure: ['First, I would listen...', 'Then I would explain...', 'The goal is...'] },
+  { id: 'day-25', day: 25, category: '竞争分析', title: 'How to analyze a competitor', prompt: 'Explain how you analyze a competitor.', structure: ['I compare...', 'Their advantage is...', 'Our response should be...'] },
+  { id: 'day-26', day: 26, category: '并购思考', title: 'A company I would like to acquire', prompt: 'Talk about a company you would like to acquire and why.', structure: ['I would consider...', 'The reason is...', 'The integration risk is...'] },
+  { id: 'day-27', day: 27, category: '学习探索', title: 'A business I want to understand better', prompt: 'Describe a business or industry you want to understand better.', structure: ['I want to understand...', 'The business model is...', 'I still have questions about...'] },
+  { id: 'day-28', day: 28, category: '计划表达', title: 'My plan for the next quarter', prompt: 'Explain your plan for the next quarter.', structure: ['Next quarter, I plan to...', 'The priority is...', 'I will measure progress by...'] },
+  { id: 'day-29', day: 29, category: '学习复盘', title: 'What I learned this month', prompt: 'Summarize what you learned this month.', structure: ['This month, I learned...', 'The most useful lesson was...', 'Next, I will...'] },
+  { id: 'day-30', day: 30, category: '学习复盘', title: 'My English progress after one month', prompt: 'Review your English progress after one month of practice.', structure: ['Compared with one month ago...', 'I can now...', 'I still need to improve...'] }
+];
+
 const getListeningOptions = (entry) => {
   const options = [entry.term, entry.confusingTerm].filter(Boolean);
   if (options.length < 2) return options;
@@ -422,6 +457,19 @@ const saveWritingRecords = (records) => {
   localStorage.setItem(WRITING_RECORDS_STORAGE_KEY, JSON.stringify(records.slice(0, MAX_WRITING_RECORDS)));
 };
 
+const loadSpeakingRecords = () => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(SPEAKING_RECORDS_STORAGE_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveSpeakingRecords = (records) => {
+  localStorage.setItem(SPEAKING_RECORDS_STORAGE_KEY, JSON.stringify(records.slice(0, MAX_SPEAKING_RECORDS)));
+};
+
 const loadVoiceName = () => {
   try {
     return localStorage.getItem(VOICE_STORAGE_KEY) || '';
@@ -479,6 +527,14 @@ function App() {
   const [writingStartedAt, setWritingStartedAt] = useState(null);
   const [writingElapsed, setWritingElapsed] = useState(savedProgress.writingElapsed || 0);
   const [writingRecords, setWritingRecords] = useState(loadWritingRecords);
+  const [speakingTopicId, setSpeakingTopicId] = useState(savedProgress.speakingTopicId || speakingTopics[0].id);
+  const [speakingTranscript, setSpeakingTranscript] = useState(savedProgress.speakingTranscript || '');
+  const [speakingFeedback, setSpeakingFeedback] = useState(null);
+  const [speakingError, setSpeakingError] = useState('');
+  const [speakingLoading, setSpeakingLoading] = useState(false);
+  const [speakingRecording, setSpeakingRecording] = useState(false);
+  const [speakingStatus, setSpeakingStatus] = useState('');
+  const [speakingRecords, setSpeakingRecords] = useState(loadSpeakingRecords);
   const [reviewSourceIds, setReviewSourceIds] = useState([]);
   const [sessionSummary, setSessionSummary] = useState(null);
   const restoredProgressRef = useRef(false);
@@ -553,6 +609,11 @@ function App() {
   const writingWordCount = writingEssay.trim() ? writingEssay.trim().split(/\s+/).filter(Boolean).length : 0;
   const currentWritingElapsed = writingStartedAt ? Math.floor((Date.now() - writingStartedAt) / 1000) : writingElapsed;
   const writingTimerText = `${Math.floor(currentWritingElapsed / 60)}:${String(currentWritingElapsed % 60).padStart(2, '0')}`;
+  const currentSpeakingTopic =
+    speakingTopics.find((topic) => topic.id === speakingTopicId) || speakingTopics[0];
+  const speakingWordCount = speakingTranscript.trim()
+    ? speakingTranscript.trim().split(/\s+/).filter(Boolean).length
+    : 0;
 
   const current = filteredEntries[index % filteredEntries.length];
   const savedListeningPosition = filteredListeningEntries.findIndex((entry) => entry.id === listeningCurrentId);
@@ -665,7 +726,9 @@ function App() {
     writingCategory,
     writingElapsed,
     writingEssay,
-    writingTopicId
+    writingTopicId,
+    speakingTopicId,
+    speakingTranscript
   ]);
 
   function makeCurrentProgress() {
@@ -683,7 +746,9 @@ function App() {
       writingCategory,
       writingTopicId: currentWritingTopic.id,
       writingEssay,
-      writingElapsed: currentWritingElapsed
+      writingElapsed: currentWritingElapsed,
+      speakingTopicId: currentSpeakingTopic.id,
+      speakingTranscript
     };
   }
 
@@ -714,6 +779,8 @@ function App() {
     setSpeechStatus('');
     setReadStatus('');
     setReadPlaying(false);
+    setSpeakingStatus('');
+    setSpeakingRecording(false);
   }
 
   function resetListeningState() {
@@ -1157,6 +1224,184 @@ function App() {
   const stopWritingRead = () => {
     stopSpeaking();
     setReadStatus('作文朗读已停止。');
+  };
+
+  const stopSpeakingRead = () => {
+    stopSpeaking();
+    setReadStatus('口语朗读已停止。');
+  };
+
+  const pickSpeakingTopic = (step = 1) => {
+    const currentPosition = speakingTopics.findIndex((topic) => topic.id === currentSpeakingTopic.id);
+    const nextIndex = (currentPosition + step + speakingTopics.length) % speakingTopics.length;
+    const next = speakingTopics[nextIndex];
+    setSpeakingTopicId(next.id);
+    setSpeakingFeedback(null);
+    setSpeakingError('');
+    setSpeakingStatus('');
+    setReadStatus('');
+  };
+
+  const pickRandomSpeakingTopic = () => {
+    let next = Math.floor(Math.random() * speakingTopics.length);
+    const currentPosition = speakingTopics.findIndex((topic) => topic.id === currentSpeakingTopic.id);
+    if (next === currentPosition) next = (next + 1) % speakingTopics.length;
+    const topic = speakingTopics[next];
+    setSpeakingTopicId(topic.id);
+    setSpeakingFeedback(null);
+    setSpeakingError('');
+    setSpeakingStatus('');
+    setReadStatus('');
+  };
+
+  const resetSpeakingDraft = () => {
+    setSpeakingTranscript('');
+    setSpeakingFeedback(null);
+    setSpeakingError('');
+    setSpeakingStatus('');
+    setReadStatus('');
+  };
+
+  const saveSpeakingRecord = (record) => {
+    setSpeakingRecords((previous) => {
+      const next = [record, ...previous].slice(0, MAX_SPEAKING_RECORDS);
+      saveSpeakingRecords(next);
+      return next;
+    });
+  };
+
+  const startSpeakingRecording = () => {
+    if (!SpeechRecognition || speakingRecording) return;
+    stopContinuousExamples('');
+    stopSpeaking();
+    clearRecognitionTimers();
+    if (recognitionStartTimerRef.current) {
+      window.clearTimeout(recognitionStartTimerRef.current);
+      recognitionStartTimerRef.current = null;
+    }
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.abort();
+      } catch {
+        // Ignore stale recognition handles.
+      }
+      recognitionRef.current = null;
+    }
+
+    const recognition = new SpeechRecognition();
+    let finalText = speakingTranscript.trim();
+    recognition.lang = 'en-US';
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+    stoppingRecognitionRef.current = false;
+
+    recognition.onstart = () => {
+      if (recognitionRef.current !== recognition) return;
+      setSpeakingRecording(true);
+      setSpeakingStatus('正在录音识别。说完后点击“停止录音”。');
+    };
+    recognition.onresult = (event) => {
+      if (recognitionRef.current !== recognition) return;
+      let interimText = '';
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        const transcript = event.results[i][0]?.transcript ?? '';
+        if (event.results[i].isFinal) {
+          finalText = `${finalText} ${transcript}`.trim();
+        } else {
+          interimText = `${interimText} ${transcript}`.trim();
+        }
+      }
+      setSpeakingTranscript(`${finalText} ${interimText}`.trim());
+      setSpeakingStatus(interimText ? '正在实时识别。' : '已识别到一段内容，可以继续说。');
+    };
+    recognition.onerror = (event) => {
+      if (recognitionRef.current !== recognition) return;
+      recognitionRef.current = null;
+      setSpeakingRecording(false);
+      const messages = {
+        'not-allowed': '麦克风权限被拒绝，请在浏览器地址栏允许麦克风。',
+        'no-speech': '没有检测到语音，请点击开始后马上说。',
+        'audio-capture': '没有检测到可用麦克风。',
+        aborted: stoppingRecognitionRef.current ? '录音已停止。' : '识别被浏览器中断，请再点开始录音。',
+        network: '浏览器语音识别服务暂时不可用。'
+      };
+      setSpeakingStatus(messages[event.error] || `语音识别失败：${event.error}`);
+    };
+    recognition.onend = () => {
+      if (recognitionRef.current !== recognition) return;
+      recognitionRef.current = null;
+      setSpeakingRecording(false);
+      setSpeakingStatus((status) => status || '录音已结束，可以提交给口语教练。');
+    };
+
+    recognitionRef.current = recognition;
+    try {
+      recognition.start();
+      setSpeakingRecording(true);
+      setSpeakingStatus('正在启动录音识别。');
+    } catch (error) {
+      recognitionRef.current = null;
+      setSpeakingRecording(false);
+      setSpeakingStatus(`语音识别启动失败：${error.message || '请刷新页面后再试。'}`);
+    }
+  };
+
+  const stopSpeakingRecording = () => {
+    stoppingRecognitionRef.current = true;
+    recognitionRef.current?.stop();
+    setSpeakingRecording(false);
+    setSpeakingStatus('录音已停止，可以提交给口语教练。');
+  };
+
+  const submitSpeaking = async (event) => {
+    event.preventDefault();
+    if (speakingWordCount < 15) {
+      setSpeakingError('先说到至少 15 个英文词，再提交给口语教练。');
+      return;
+    }
+    if (speakingRecording) stopSpeakingRecording();
+
+    setSpeakingLoading(true);
+    setSpeakingError('');
+    setSpeakingFeedback(null);
+
+    try {
+      const response = await fetch('/api/speaking-feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: currentSpeakingTopic,
+          transcript: speakingTranscript,
+          wordCount: speakingWordCount
+        })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || '口语教练暂时不可用。');
+      }
+      setSpeakingFeedback(data);
+      saveSpeakingRecord({
+        id: `${Date.now()}-${currentSpeakingTopic.id}`,
+        date: todayKey(),
+        topic: currentSpeakingTopic,
+        transcript: speakingTranscript,
+        wordCount: speakingWordCount,
+        feedback: data
+      });
+    } catch (error) {
+      setSpeakingError(error.message || '口语教练暂时不可用。');
+    } finally {
+      setSpeakingLoading(false);
+    }
+  };
+
+  const playSpeakingText = (text, label) => {
+    if (!text) return;
+    stopContinuousExamples('');
+    setPlaybackMediaSession(label, '英语学习宝 · 口语朗读');
+    setReadStatus(`正在朗读${label}。`);
+    speak(text, { mode: 'essay', rate: 0.7, pause: 460 });
   };
 
   const startContinuousExamples = async () => {
@@ -1681,7 +1926,29 @@ function App() {
           </div>
         </div>
 
-        {mode === 'writing' ? (
+        {mode === 'speaking' ? (
+          <>
+            <div className="field chapter-field">
+              <label htmlFor="speakingTopic">口语主题</label>
+              <select
+                id="speakingTopic"
+                value={currentSpeakingTopic.id}
+                onChange={(event) => {
+                  setSpeakingTopicId(event.target.value);
+                  setSpeakingFeedback(null);
+                  setSpeakingError('');
+                  setSpeakingStatus('');
+                }}
+              >
+                {speakingTopics.map((topic) => (
+                  <option key={topic.id} value={topic.id}>
+                    Day {topic.day} · {topic.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </>
+        ) : mode === 'writing' ? (
           <>
             <div className="field chapter-field">
               <label htmlFor="writingCategory">写作题材</label>
@@ -1798,7 +2065,47 @@ function App() {
           </>
         )}
 
-        {mode === 'writing' ? (
+        {mode === 'speaking' ? (
+          <>
+            <section className="review-box">
+              <div>
+                <span>口语记录</span>
+                <strong>{speakingRecords.length}</strong>
+                <small>
+                  {speakingRecords[0]
+                    ? `最近一次 ${speakingRecords[0].date}，评分 ${speakingRecords[0].feedback?.score ?? '--'}`
+                    : '提交点评后自动保存'}
+                </small>
+              </div>
+              <button className="review-button" onClick={pickRandomSpeakingTopic}>
+                <Shuffle size={17} />
+                随机主题
+              </button>
+            </section>
+
+            <section className="finish-box">
+              <div>
+                <span>当前识别</span>
+                <strong>{speakingWordCount}</strong>
+              </div>
+              <button className="finish-button" onClick={speakingRecording ? stopSpeakingRecording : startSpeakingRecording} disabled={!SpeechRecognition}>
+                {speakingRecording ? <MicOff size={17} /> : <Mic size={17} />}
+                {speakingRecording ? '停止录音' : '开始录音'}
+              </button>
+            </section>
+
+            <div className="stats">
+              <div>
+                <span>30天计划</span>
+                <strong>{currentSpeakingTopic.day}</strong>
+              </div>
+              <div>
+                <span>主题库</span>
+                <strong>{speakingTopics.length}</strong>
+              </div>
+            </div>
+          </>
+        ) : mode === 'writing' ? (
           <>
             <section className="review-box">
               <div>
@@ -1931,6 +2238,8 @@ function App() {
                 ? '雅思听力场景词汇'
                 : mode === 'writing'
                 ? '雅思写作陪练'
+                : mode === 'speaking'
+                ? '30天口语训练'
                 : '看中文例句，复写英文表达'}
             </h1>
           </div>
@@ -1983,6 +2292,18 @@ function App() {
               <PenLine size={18} />
               写作训练
             </button>
+            <button
+              type="button"
+              className={mode === 'speaking' ? 'active' : ''}
+              onClick={() => {
+                stopContinuousExamples('');
+                setReviewCardActive(false);
+                setMode('speaking');
+              }}
+            >
+              <Mic size={18} />
+              口语训练
+            </button>
           </div>
         </header>
 
@@ -2003,7 +2324,14 @@ function App() {
           {sectionResult && <SectionResult result={sectionResult} onClose={() => setSectionResult(null)} />}
           {sessionSummary && <SessionSummary summary={sessionSummary} onClose={() => setSessionSummary(null)} />}
           <div className="card-meta">
-            {mode === 'writing' ? (
+            {mode === 'speaking' ? (
+              <>
+                <span>30-Day Speaking</span>
+                <span>Day {currentSpeakingTopic.day}</span>
+                <span>{currentSpeakingTopic.category}</span>
+                <span>{speakingWordCount} words</span>
+              </>
+            ) : mode === 'writing' ? (
               <>
                 <span>IELTS Writing Task 2</span>
                 <span>{currentWritingTopic.category}</span>
@@ -2035,7 +2363,28 @@ function App() {
             )}
           </div>
 
-          {mode === 'writing' ? (
+          {mode === 'speaking' ? (
+            <SpeakingPractice
+              topic={currentSpeakingTopic}
+              transcript={speakingTranscript}
+              setTranscript={setSpeakingTranscript}
+              wordCount={speakingWordCount}
+              recording={speakingRecording}
+              startRecording={startSpeakingRecording}
+              stopRecording={stopSpeakingRecording}
+              resetDraft={resetSpeakingDraft}
+              submitSpeaking={submitSpeaking}
+              loading={speakingLoading}
+              error={speakingError}
+              status={speakingStatus}
+              feedback={speakingFeedback}
+              records={speakingRecords}
+              readStatus={readStatus}
+              readPlaying={readPlaying}
+              playSpeakingText={playSpeakingText}
+              stopSpeakingRead={stopSpeakingRead}
+            />
+          ) : mode === 'writing' ? (
             <WritingPractice
               topic={currentWritingTopic}
               essay={writingEssay}
@@ -2112,14 +2461,27 @@ function App() {
           )}
 
           <div className="card-actions">
-            <button type="button" className="secondary-button" onClick={() => (mode === 'listening' ? moveListeningBy(-1) : moveTo(index - 1))}>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => (mode === 'speaking' ? pickSpeakingTopic(-1) : mode === 'listening' ? moveListeningBy(-1) : moveTo(index - 1))}
+            >
               <ChevronLeft size={18} />
               上一个
             </button>
-            <button type="button" className="secondary-button icon-only" aria-label="随机抽词" onClick={mode === 'listening' ? randomListeningCard : randomCard}>
+            <button
+              type="button"
+              className="secondary-button icon-only"
+              aria-label={mode === 'speaking' ? '随机主题' : '随机抽词'}
+              onClick={mode === 'speaking' ? pickRandomSpeakingTopic : mode === 'listening' ? randomListeningCard : randomCard}
+            >
               <Shuffle size={18} />
             </button>
-            <button type="button" className="primary-button" onClick={() => (mode === 'listening' ? moveListeningBy(1) : moveTo(index + 1))}>
+            <button
+              type="button"
+              className="primary-button"
+              onClick={() => (mode === 'speaking' ? pickSpeakingTopic(1) : mode === 'listening' ? moveListeningBy(1) : moveTo(index + 1))}
+            >
               下一个
               <ChevronRight size={18} />
             </button>
@@ -2127,6 +2489,134 @@ function App() {
         </section>
       </section>
     </main>
+  );
+}
+
+function SpeakingPractice({
+  topic,
+  transcript,
+  setTranscript,
+  wordCount,
+  recording,
+  startRecording,
+  stopRecording,
+  resetDraft,
+  submitSpeaking,
+  loading,
+  error,
+  status,
+  feedback,
+  records,
+  readStatus,
+  readPlaying,
+  playSpeakingText,
+  stopSpeakingRead
+}) {
+  return (
+    <div className="speaking-layout">
+      <section className="speaking-prompt">
+        <div>
+          <span>Day {topic.day} · {topic.category}</span>
+          <strong>{topic.title}</strong>
+          <p>{topic.prompt}</p>
+        </div>
+        <div className="speaking-structure">
+          <span>表达骨架</span>
+          {topic.structure.map((item) => (
+            <em key={item}>{item}</em>
+          ))}
+        </div>
+      </section>
+
+      <form className="speaking-form" onSubmit={submitSpeaking}>
+        <div className="writing-toolbar">
+          <div>
+            <span>识别字数</span>
+            <strong className={wordCount >= 60 ? 'ready' : ''}>{wordCount}</strong>
+          </div>
+          <button type="button" className={`record-button ${recording ? 'recording' : ''}`} onClick={recording ? stopRecording : startRecording} disabled={!SpeechRecognition || loading}>
+            {recording ? <MicOff size={18} /> : <Mic size={18} />}
+            {recording ? '停止录音' : '开始录音'}
+          </button>
+          <button type="button" className="secondary-button" onClick={resetDraft} disabled={loading || recording}>
+            <RotateCcw size={18} />
+            清空
+          </button>
+        </div>
+
+        {!SpeechRecognition && <p className="writing-error">当前浏览器不支持语音识别，建议用 Chrome 打开。</p>}
+        {status && <p className="speaking-status">{status}</p>}
+
+        <label className="writing-editor">
+          <span>语音识别文本</span>
+          <textarea
+            value={transcript}
+            onChange={(event) => setTranscript(event.target.value)}
+            placeholder="点击开始录音，说 2-3 分钟；也可以在这里手动修改识别文本。"
+            autoCapitalize="sentences"
+            spellCheck="true"
+          />
+        </label>
+
+        {error && <p className="writing-error">{error}</p>}
+
+        <div className="form-actions">
+          <button className="primary-button" type="submit" disabled={loading || recording || wordCount < 15}>
+            {loading ? <Clock3 size={18} /> : <Send size={18} />}
+            {loading ? '点评中' : '提交给口语教练'}
+          </button>
+        </div>
+      </form>
+
+      {feedback && (
+        <section className="writing-report speaking-report">
+          <div className="writing-score">
+            <span>口语评分</span>
+            <strong>{feedback.score ?? '--'}</strong>
+            <p>{feedback.summary}</p>
+          </div>
+
+          {readStatus && <p className="writing-read-status">{readStatus}</p>}
+          {readPlaying && (
+            <div className="writing-read-stop">
+              <button type="button" className="secondary-button" onClick={stopSpeakingRead}>
+                <Pause size={18} />
+                停止朗读
+              </button>
+            </div>
+          )}
+
+          <div className="speaking-polished">
+            <span>更自然版本</span>
+            <button
+              type="button"
+              className="secondary-button writing-read-button"
+              onClick={() => playSpeakingText(feedback.naturalVersion, '口语修改版')}
+            >
+              <Volume2 size={18} />
+              朗读修改版
+            </button>
+            <p>{feedback.naturalVersion}</p>
+          </div>
+
+          <FeedbackList title="3个主要问题" items={feedback.errors} />
+          <FeedbackList title="5个可背表达" items={feedback.memorableExpressions} />
+          <FeedbackList title="下一轮练习建议" items={feedback.nextPractice} />
+        </section>
+      )}
+
+      {!!records.length && (
+        <section className="writing-history">
+          <span>最近口语记录</span>
+          {records.slice(0, 3).map((record) => (
+            <div key={record.id}>
+              <strong>{record.feedback?.score ?? '--'} · Day {record.topic.day}</strong>
+              <p>{record.topic.title}</p>
+            </div>
+          ))}
+        </section>
+      )}
+    </div>
   );
 }
 
