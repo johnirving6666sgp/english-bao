@@ -59,7 +59,8 @@ Rules:
 - Be specific and practical.
 - Do not overpraise.
 - Keep each array to 3-5 items.
-- If the essay is too short, still provide feedback but explain the limitation.
+- If the essay is short, still provide useful feedback. Treat it as a growth draft and give concrete expansion advice.
+- For short drafts under 100 words, focus on clarity, sentence building, idea expansion, and one practical next paragraph.
 `;
 
 export async function onRequestPost({ request, env }) {
@@ -71,8 +72,8 @@ export async function onRequestPost({ request, env }) {
   }
 
   const essay = typeof payload.essay === 'string' ? payload.essay.trim() : '';
-  if (essay.split(/\s+/).filter(Boolean).length < 80) {
-    return jsonResponse({ error: '作文太短，请至少写 80 个英文词。' }, 400);
+  if (!essay) {
+    return jsonResponse({ error: '请先写几句英文，再提交给写作教练。' }, 400);
   }
 
   if (!env.OPENAI_API_KEY) {

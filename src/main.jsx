@@ -1816,8 +1816,8 @@ function App() {
 
   const submitWriting = async (event) => {
     event.preventDefault();
-    if (!writingEssay.trim() || writingWordCount < 80) {
-      setWritingError('先写到至少 80 个英文词，再提交给写作教练。');
+    if (!writingEssay.trim()) {
+      setWritingError('先写几句英文，再提交给写作教练。');
       return;
     }
 
@@ -2783,7 +2783,7 @@ function WritingPractice({
         <div>
           <span>Task 2 · {topic.category} · {topic.type}</span>
           <strong>{topic.question}</strong>
-          <p>Write at least 250 words. Spend about 40 minutes on this task.</p>
+          <p>Final IELTS essays aim for 250+ words, but short drafts are welcome for step-by-step growth.</p>
         </div>
         <button type="button" className="secondary-button" onClick={randomTopic}>
           <Shuffle size={18} />
@@ -2825,7 +2825,7 @@ function WritingPractice({
         {error && <p className="writing-error">{error}</p>}
 
         <div className="form-actions">
-          <button className="primary-button" type="submit" disabled={loading || wordCount < 80}>
+          <button className="primary-button" type="submit" disabled={loading || wordCount === 0}>
             {loading ? <Clock3 size={18} /> : <Send size={18} />}
             {loading ? '批改中' : '提交给写作教练'}
           </button>
