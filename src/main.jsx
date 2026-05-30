@@ -2850,6 +2850,12 @@ function WritingPractice({
   playWritingText,
   stopWritingRead
 }) {
+  const [libraryItems, setLibraryItems] = useState([]);
+  const [libraryLoading, setLibraryLoading] = useState(false);
+  const [libraryError, setLibraryError] = useState('');
+  const [libraryCategory, setLibraryCategory] = useState('all');
+  const [libraryDate, setLibraryDate] = useState('all');
+  const [expandedLibraryKey, setExpandedLibraryKey] = useState('');
   const bandRows = feedback?.scores
     ? [
         ['Task Response', feedback.scores.taskResponse],
@@ -2858,6 +2864,48 @@ function WritingPractice({
         ['Grammar', feedback.scores.grammar]
       ]
     : [];
+  const libraryCategories = useMemo(
+    () => [...new Set(libraryItems.map((item) => item.topic?.category).filter(Boolean))],
+    [libraryItems]
+  );
+  const libraryDates = useMemo(
+    () => [...new Set(libraryItems.map((item) => item.date).filter(Boolean))],
+    [libraryItems]
+  );
+  const filteredLibraryItems = useMemo(
+    () =>
+      libraryItems.filter((item) => {
+        const categoryMatch = libraryCategory === 'all' || item.topic?.category === libraryCategory;
+        const dateMatch = libraryDate === 'all' || item.date === libraryDate;
+        return categoryMatch && dateMatch;
+      }),
+    [libraryCategory, libraryDate, libraryItems]
+  );
+
+  const loadWritingLibrary = async () => {
+    setLibraryLoading(true);
+    setLibraryError('');
+    try {
+      const response = await fetch('/api/writing-library?limit=100');
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || '写作范文库暂时不可用。');
+      setLibraryItems(Array.isArray(data.items) ? data.items : []);
+    } catch (error) {
+      setLibraryError(error.message || '写作范文库暂时不可用。');
+    } finally {
+      setLibraryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadWritingLibrary();
+  }, []);
+
+  useEffect(() => {
+    if (!feedback?.bandSevenCacheKey) return;
+    loadWritingLibrary();
+    setExpandedLibraryKey(feedback.bandSevenCacheKey);
+  }, [feedback?.bandSevenCacheKey]);
 
   return (
     <div className="writing-layout">
@@ -2993,6 +3041,91 @@ function WritingPractice({
           ))}
         </section>
       )}
+
+      <section className="writing-library">
+        <div className="writing-library-head">
+          <div>
+            <span>写作历史 / 7分范文库</span>
+            <strong>{filteredLibraryItems.length}</strong>
+            <p>保存在 Cloudflare 数据库里的 7 分示范范文，可重复查看和朗读。</p>
+          </div>
+          <button type="button" className="secondary-button" onClick={loadWritingLibrary} disabled={libraryLoading}>
+            <RotateCcw size={18} />
+            {libraryLoading ? '刷新中' : '刷新范文库'}
+          </button>
+        </div>
+
+        <div className="writing-library-filters">
+          <label>
+            <span>日期</span>
+            <select value={libraryDate} onChange={(event) => setLibraryDate(event.target.value)}>
+              <option value="all">全部日期</option>
+              {libraryDates.map((dateValue) => (
+                <option key={dateValue} value={dateValue}>
+                  {dateValue}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>题材</span>
+            <select value={libraryCategory} onChange={(event) => setLibraryCategory(event.target.value)}>
+              <option value="all">全部题材</option>
+              {libraryCategories.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        {libraryError && <p className="writing-error">{libraryError}</p>}
+        {!libraryLoading && !filteredLibraryItems.length && (
+          <p className="empty-library">还没有可查看的 7 分范文。提交一次写作批改后，这里会自动出现。</p>
+        )}
+
+        <div className="writing-library-list">
+          {filteredLibraryItems.map((item) => {
+            const expanded = expandedLibraryKey === item.key;
+            return (
+              <article key={item.key} className="writing-library-item">
+                <button
+                  type="button"
+                  className="writing-library-title"
+                  onClick={() => setExpandedLibraryKey(expanded ? '' : item.key)}
+                >
+                  <span>
+                    {item.date || '未记录日期'} · {item.topic?.category || '未分类'} · {item.topic?.type || 'Task 2'}
+                  </span>
+                  <strong>{item.topic?.question || '写作示范范文'}</strong>
+                </button>
+                {expanded && (
+                  <div className="writing-library-detail">
+                    <div className="writing-library-actions">
+                      <button
+                        type="button"
+                        className="secondary-button writing-read-button"
+                        onClick={() =>
+                          playWritingText(item.bandSevenVersion, '7分示范版作文', {
+                            highQuality: true,
+                            cacheKey: item.key,
+                            audioKey: item.audioKey
+                          })
+                        }
+                      >
+                        <Volume2 size={18} />
+                        朗读这篇范文
+                      </button>
+                    </div>
+                    <p>{item.bandSevenVersion}</p>
+                  </div>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      </section>
     </div>
   );
 }
