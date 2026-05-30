@@ -44,6 +44,8 @@ Rules:
 - Return exactly 5 items in memorableExpressions.
 - Keep nextPractice to 2-3 practical actions.
 - Focus on spoken English: clarity, grammar, word choice, sentence structure, and natural phrasing.
+- If the transcript is very short, still give useful feedback. Treat it as a starting attempt and suggest how to extend it into the next sentence or paragraph.
+- For short answers under 20 words, do not punish length heavily. Focus on helping the learner say one clearer, more natural version and one practical expansion.
 - Do not overpraise. Be supportive and specific.
 `;
 
@@ -57,8 +59,8 @@ export async function onRequestPost({ request, env }) {
 
   const transcript = typeof payload.transcript === 'string' ? payload.transcript.trim() : '';
   const wordCount = transcript.split(/\s+/).filter(Boolean).length;
-  if (wordCount < 15) {
-    return jsonResponse({ error: '口语文本太短，请至少说 15 个英文词。' }, 400);
+  if (!transcript) {
+    return jsonResponse({ error: '请先说一点英文，再提交给口语教练。' }, 400);
   }
 
   if (!env.OPENAI_API_KEY) {

@@ -1358,8 +1358,8 @@ function App() {
 
   const submitSpeaking = async (event) => {
     event.preventDefault();
-    if (speakingWordCount < 15) {
-      setSpeakingError('先说到至少 15 个英文词，再提交给口语教练。');
+    if (!speakingTranscript.trim()) {
+      setSpeakingError('先说一点英文，再提交给口语教练。');
       return;
     }
     if (speakingRecording) stopSpeakingRecording();
@@ -2555,7 +2555,7 @@ function SpeakingPractice({
           <textarea
             value={transcript}
             onChange={(event) => setTranscript(event.target.value)}
-            placeholder="点击开始录音，说 2-3 分钟；也可以在这里手动修改识别文本。"
+            placeholder="点击开始录音，先说一点也可以；也可以在这里手动修改识别文本。"
             autoCapitalize="sentences"
             spellCheck="true"
           />
@@ -2564,7 +2564,7 @@ function SpeakingPractice({
         {error && <p className="writing-error">{error}</p>}
 
         <div className="form-actions">
-          <button className="primary-button" type="submit" disabled={loading || recording || wordCount < 15}>
+          <button className="primary-button" type="submit" disabled={loading || recording || wordCount === 0}>
             {loading ? <Clock3 size={18} /> : <Send size={18} />}
             {loading ? '点评中' : '提交给口语教练'}
           </button>
