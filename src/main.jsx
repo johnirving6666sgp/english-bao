@@ -490,6 +490,7 @@ function App() {
   const recognitionTimersRef = useRef([]);
   const recognitionStartTimerRef = useRef(null);
   const audioRef = useRef(null);
+  const audioStopResolverRef = useRef(null);
   const utteranceRef = useRef(null);
   const continuousRunRef = useRef(0);
 
@@ -842,6 +843,10 @@ function App() {
     speechTimersRef.current = [];
     utteranceRef.current = null;
     setReadPlaying(false);
+    if (audioStopResolverRef.current) {
+      audioStopResolverRef.current(false);
+      audioStopResolverRef.current = null;
+    }
     let stoppedAudio = false;
     if (audioRef.current) {
       const audio = audioRef.current;
@@ -970,6 +975,8 @@ function App() {
 
     stopSpeaking();
     const audio = new Audio(audioUrl);
+    audio.preload = 'auto';
+    audio.volume = 1;
     audioRef.current = audio;
     setReadPlaying(true);
     setReadStatus('正在播放预生成例句音频。');
@@ -981,12 +988,14 @@ function App() {
     };
     audio.onerror = () => {
       if (audioRef.current === audio) audioRef.current = null;
+      cleanupAudio(audio);
       setReadPlaying(false);
       setReadStatus('预生成音频不可用，改用系统备用朗读。');
       speak(text, options);
     };
     audio.play().catch(() => {
       if (audioRef.current === audio) audioRef.current = null;
+      cleanupAudio(audio);
       setReadPlaying(false);
       setReadStatus('预生成音频未能播放，改用系统备用朗读。');
       speak(text, options);
@@ -1002,6 +1011,8 @@ function App() {
 
     stopSpeaking();
     const audio = new Audio(audioUrl);
+    audio.preload = 'auto';
+    audio.volume = 1;
     audioRef.current = audio;
     setReadPlaying(true);
     setReadStatus(`正在播放预生成${label}音频。`);
@@ -1013,12 +1024,14 @@ function App() {
     };
     audio.onerror = () => {
       if (audioRef.current === audio) audioRef.current = null;
+      cleanupAudio(audio);
       setReadPlaying(false);
       setReadStatus(`预生成${label}音频不可用，改用系统备用朗读。`);
       speak(fallbackText, fallbackOptions);
     };
     audio.play().catch(() => {
       if (audioRef.current === audio) audioRef.current = null;
+      cleanupAudio(audio);
       setReadPlaying(false);
       setReadStatus(`预生成${label}音频未能播放，改用系统备用朗读。`);
       speak(fallbackText, fallbackOptions);
@@ -1072,22 +1085,32 @@ function App() {
       }
 
       const audio = new Audio(audioUrl);
+      audio.preload = 'auto';
+      audio.volume = 1;
       audioRef.current = audio;
+      audioStopResolverRef.current = (value) => {
+        if (audioRef.current === audio) audioRef.current = null;
+        cleanupAudio(audio);
+        resolve(value);
+      };
       setReadPlaying(true);
       setPlaybackMediaSession(fallbackText, '英语学习宝 · 连续播放');
       setReadStatus(`正在连续播放${label}。`);
       audio.onended = () => {
+        if (audioStopResolverRef.current) audioStopResolverRef.current = null;
         if (audioRef.current === audio) audioRef.current = null;
         cleanupAudio(audio);
         resolve(runId === continuousRunRef.current);
       };
       audio.onerror = () => {
+        if (audioStopResolverRef.current) audioStopResolverRef.current = null;
         if (audioRef.current === audio) audioRef.current = null;
         cleanupAudio(audio);
         setReadStatus(`预生成${label}音频不可用，改用系统备用朗读。`);
         playFallbackOnce(fallbackText, fallbackOptions, label, runId).then(resolve);
       };
       audio.play().catch(() => {
+        if (audioStopResolverRef.current) audioStopResolverRef.current = null;
         if (audioRef.current === audio) audioRef.current = null;
         cleanupAudio(audio);
         setReadStatus(`预生成${label}音频未能播放，改用系统备用朗读。`);
