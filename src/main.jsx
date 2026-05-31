@@ -547,6 +547,7 @@ function App() {
   const recognitionTimersRef = useRef([]);
   const recognitionStartTimerRef = useRef(null);
   const audioRef = useRef(null);
+  const continuousAudioRef = useRef(null);
   const audioStopResolverRef = useRef(null);
   const utteranceRef = useRef(null);
   const continuousRunRef = useRef(0);
@@ -1164,7 +1165,7 @@ function App() {
       SpeechSynthesis.speak(utterance);
     });
 
-  const playAudioOnce = (audioUrl, fallbackText, fallbackOptions, label, runId) =>
+  const playAudioOnce = (audioUrl, fallbackText, fallbackOptions, label, runId, options = {}) =>
     new Promise((resolve) => {
       if (runId !== continuousRunRef.current) {
         resolve(false);
@@ -1173,13 +1174,23 @@ function App() {
 
       stopSpeaking();
       if (!audioUrl) {
+        if (options.skipFallback) {
+          setReadStatus(`没有可用的${label}音频，已跳过这一条。`);
+          resolve(runId === continuousRunRef.current);
+          return;
+        }
         setReadStatus(`使用系统备用朗读${label}。`);
         setPlaybackMediaSession(fallbackText, '英语学习宝 · 备用朗读');
         playFallbackOnce(fallbackText, fallbackOptions, label, runId).then(resolve);
         return;
       }
 
-      const audio = new Audio(audioUrl);
+      const audio = options.reuseAudio
+        ? continuousAudioRef.current || new Audio()
+        : new Audio();
+      if (options.reuseAudio && !continuousAudioRef.current) {
+        continuousAudioRef.current = audio;
+      }
       let settled = false;
       let lastProgressAt = Date.now();
       const clearWatchdogs = () => {
@@ -1219,6 +1230,7 @@ function App() {
 
       audio.preload = 'auto';
       audio.volume = 1;
+      audio.src = audioUrl;
       audioRef.current = audio;
       audioStopResolverRef.current = settle;
       setReadPlaying(true);
@@ -1241,6 +1253,11 @@ function App() {
           resolve(false);
           return;
         }
+        if (options.skipFallback) {
+          setReadStatus(`预生成${label}音频不可用，已跳过这一条继续播放。`);
+          resolve(true);
+          return;
+        }
         setReadStatus(`预生成${label}音频不可用，改用系统备用朗读。`);
         playFallbackOnce(fallbackText, fallbackOptions, label, runId).then(resolve);
       };
@@ -1250,6 +1267,11 @@ function App() {
         cleanupCurrentAudio();
         if (runId !== continuousRunRef.current) {
           resolve(false);
+          return;
+        }
+        if (options.skipFallback) {
+          setReadStatus(`预生成${label}音频未能播放，已跳过这一条继续播放。`);
+          resolve(true);
           return;
         }
         setReadStatus(`预生成${label}音频未能播放，改用系统备用朗读。`);
@@ -1276,7 +1298,10 @@ function App() {
         finish(true);
       }, CONTINUOUS_AUDIO_DEADLINE_MS);
 
-      playAudioOnce(audioUrl, fallbackText, fallbackOptions, label, runId).then(finish);
+      playAudioOnce(audioUrl, fallbackText, fallbackOptions, label, runId, {
+        reuseAudio: true,
+        skipFallback: true
+      }).then(finish);
     });
 
   const playListeningWord = () => {
