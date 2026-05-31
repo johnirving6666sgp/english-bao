@@ -316,30 +316,6 @@ h1 {
   background: #30628e;
 }
 
-.voice-panel {
-  display: grid;
-  grid-template-columns: auto minmax(180px, 360px) minmax(0, 1fr);
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 14px;
-  padding: 12px;
-  border: 1px solid #d9e1ea;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.72);
-}
-
-.voice-panel label {
-  color: #344054;
-  font-size: 13px;
-  font-weight: 900;
-}
-
-.voice-panel span {
-  color: #667085;
-  font-size: 13px;
-  line-height: 1.45;
-}
-
 .practice-card {
   min-width: 0;
   min-height: 680px;
@@ -1319,7 +1295,6 @@ textarea[readonly] {
 
   .topbar,
   .result-panel,
-  .voice-panel,
   .writing-prompt,
   .writing-library-head,
   .writing-library-filters,

@@ -2502,19 +2502,6 @@ function App() {
           </div>
         </header>
 
-        {mode !== 'writing' && <section className="voice-panel">
-          <label htmlFor="voice">发音声音</label>
-          <select id="voice" value={selectedVoiceName} onChange={(event) => setSelectedVoiceName(event.target.value)}>
-            {!voices.length && <option value="">自动选择英语语音</option>}
-            {voices.map((voice) => (
-              <option key={`${voice.name}-${voice.lang}`} value={voice.name}>
-                {voice.name} · {voice.lang}
-              </option>
-            ))}
-          </select>
-          <span>优先播放预生成 AI 例句音频；没有音频时使用当前设备语音备用。iPhone/Mac 上备用语音建议选 Samantha、Ava、Nicky、Alex 或 Google US English。</span>
-        </section>}
-
         <section className="practice-card">
           {sectionResult && <SectionResult result={sectionResult} onClose={() => setSectionResult(null)} />}
           {sessionSummary && <SessionSummary summary={sessionSummary} onClose={() => setSessionSummary(null)} />}
