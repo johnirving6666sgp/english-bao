@@ -44,6 +44,7 @@ const SPEAKING_RECORDS_STORAGE_KEY = 'english-bao-speaking-records-v1';
 const MAX_REVIEW_ITEMS = 80;
 const MAX_WRITING_RECORDS = 30;
 const MAX_SPEAKING_RECORDS = 40;
+const CONTINUOUS_AUDIO_DEADLINE_MS = 45000;
 
 const todayKey = () => {
   const date = new Date();
@@ -667,8 +668,11 @@ function App() {
   }, [chapterId, sectionTitle, query, mode, reviewActive, reviewCardActive]);
 
   useEffect(() => {
-    resetListeningState();
-  }, [listeningScene, listeningExercise, query, currentListening.id]);
+    setListeningAnswer('');
+    setListeningSubmitted(false);
+    setListeningCorrect(null);
+    if (!continuousListening) setReadStatus('');
+  }, [continuousListening, listeningScene, listeningExercise, query, currentListening.id]);
 
   useEffect(() => {
     if (!validListeningExercises.has(listeningExercise)) setListeningExercise('choice');
@@ -1253,6 +1257,28 @@ function App() {
       });
     });
 
+  const playContinuousAudio = (audioUrl, fallbackText, fallbackOptions, label, runId) =>
+    new Promise((resolve) => {
+      let settled = false;
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(deadlineTimer);
+        resolve(value);
+      };
+      const deadlineTimer = window.setTimeout(() => {
+        if (runId !== continuousRunRef.current) {
+          finish(false);
+          return;
+        }
+        stopSpeaking();
+        setReadStatus(`${label}播放等待过久，已自动跳到下一条。`);
+        finish(true);
+      }, CONTINUOUS_AUDIO_DEADLINE_MS);
+
+      playAudioOnce(audioUrl, fallbackText, fallbackOptions, label, runId).then(finish);
+    });
+
   const playListeningWord = () => {
     stopContinuousExamples('');
     saveCurrentProgress();
@@ -1585,7 +1611,7 @@ function App() {
       for (let round = 1; round <= 2; round += 1) {
         if (runId !== continuousRunRef.current) break;
         setReadStatus(`连续播放例句：第 ${entryIndex + 1} / ${playbackEntries.length} 条，第 ${round} 遍。`);
-        const completed = await playAudioOnce(
+        const completed = await playContinuousAudio(
           listeningAudioManifest.examples[entry.id],
           entry.example || entry.term,
           { mode: 'guided', rate: 0.62, pause: 420 },
@@ -1636,7 +1662,7 @@ function App() {
       for (let round = 1; round <= 2; round += 1) {
         if (runId !== continuousRunRef.current) break;
         setReadStatus(`跟读例句连续播放：第 ${entryIndex + 1} / ${filteredEntries.length} 条，第 ${round} 遍。`);
-        const completed = await playAudioOnce(
+        const completed = await playContinuousAudio(
           exampleAudioManifest[entry.example],
           entry.example,
           { mode: 'guided', rate: 0.62, pause: 420 },
