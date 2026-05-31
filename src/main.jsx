@@ -1119,27 +1119,42 @@ function App() {
   const playFallbackOnce = (text, options, label, runId) =>
     new Promise((resolve) => {
       if (!SpeechSynthesis || runId !== continuousRunRef.current) {
-        resolve(false);
+        resolve(runId === continuousRunRef.current);
         return;
       }
       SpeechSynthesis.cancel();
+      let settled = false;
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(fallbackTimer);
+        resolve(value);
+      };
+      const fallbackTimer = window.setTimeout(() => {
+        if (utteranceRef.current === utterance) utteranceRef.current = null;
+        SpeechSynthesis.cancel();
+        finish(runId === continuousRunRef.current);
+      }, 22000);
       const utterance = makeUtterance(text, activeVoice(), {
         rate: options?.rate ?? 0.62,
         pitch: options?.pitch ?? 1
       });
       utteranceRef.current = utterance;
       utterance.onstart = () => {
-        if (runId !== continuousRunRef.current) return;
+        if (runId !== continuousRunRef.current) {
+          finish(false);
+          return;
+        }
         setReadPlaying(true);
         setReadStatus(`正在连续播放${label}。`);
       };
       utterance.onend = () => {
         if (utteranceRef.current === utterance) utteranceRef.current = null;
-        resolve(runId === continuousRunRef.current);
+        finish(runId === continuousRunRef.current);
       };
       utterance.onerror = () => {
         if (utteranceRef.current === utterance) utteranceRef.current = null;
-        resolve(false);
+        finish(runId === continuousRunRef.current);
       };
       SpeechSynthesis.resume?.();
       SpeechSynthesis.speak(utterance);
@@ -1161,34 +1176,78 @@ function App() {
       }
 
       const audio = new Audio(audioUrl);
+      let settled = false;
+      let lastProgressAt = Date.now();
+      const clearWatchdogs = () => {
+        window.clearTimeout(startTimer);
+        window.clearInterval(stallTimer);
+      };
+      const cleanupCurrentAudio = () => {
+        clearWatchdogs();
+        if (audioStopResolverRef.current === settle) audioStopResolverRef.current = null;
+        if (audioRef.current === audio) audioRef.current = null;
+        cleanupAudio(audio);
+      };
+      const settle = (value) => {
+        if (settled) return;
+        settled = true;
+        cleanupCurrentAudio();
+        resolve(value);
+      };
+      const startTimer = window.setTimeout(() => {
+        if (runId !== continuousRunRef.current) {
+          settle(false);
+          return;
+        }
+        setReadStatus(`${label}音频加载超时，已跳过这一条继续播放。`);
+        settle(true);
+      }, 18000);
+      const stallTimer = window.setInterval(() => {
+        if (runId !== continuousRunRef.current) {
+          settle(false);
+          return;
+        }
+        if (!audio.paused && Date.now() - lastProgressAt > 30000) {
+          setReadStatus(`${label}音频播放卡住，已跳过这一条继续播放。`);
+          settle(true);
+        }
+      }, 5000);
+
       audio.preload = 'auto';
       audio.volume = 1;
       audioRef.current = audio;
-      audioStopResolverRef.current = (value) => {
-        if (audioRef.current === audio) audioRef.current = null;
-        cleanupAudio(audio);
-        resolve(value);
-      };
+      audioStopResolverRef.current = settle;
       setReadPlaying(true);
       setPlaybackMediaSession(fallbackText, '英语学习宝 · 连续播放');
       setReadStatus(`正在连续播放${label}。`);
+      audio.onplaying = () => {
+        lastProgressAt = Date.now();
+      };
+      audio.ontimeupdate = () => {
+        lastProgressAt = Date.now();
+      };
       audio.onended = () => {
-        if (audioStopResolverRef.current) audioStopResolverRef.current = null;
-        if (audioRef.current === audio) audioRef.current = null;
-        cleanupAudio(audio);
-        resolve(runId === continuousRunRef.current);
+        settle(runId === continuousRunRef.current);
       };
       audio.onerror = () => {
-        if (audioStopResolverRef.current) audioStopResolverRef.current = null;
-        if (audioRef.current === audio) audioRef.current = null;
-        cleanupAudio(audio);
+        if (settled) return;
+        settled = true;
+        cleanupCurrentAudio();
+        if (runId !== continuousRunRef.current) {
+          resolve(false);
+          return;
+        }
         setReadStatus(`预生成${label}音频不可用，改用系统备用朗读。`);
         playFallbackOnce(fallbackText, fallbackOptions, label, runId).then(resolve);
       };
       audio.play().catch(() => {
-        if (audioStopResolverRef.current) audioStopResolverRef.current = null;
-        if (audioRef.current === audio) audioRef.current = null;
-        cleanupAudio(audio);
+        if (settled) return;
+        settled = true;
+        cleanupCurrentAudio();
+        if (runId !== continuousRunRef.current) {
+          resolve(false);
+          return;
+        }
         setReadStatus(`预生成${label}音频未能播放，改用系统备用朗读。`);
         playFallbackOnce(fallbackText, fallbackOptions, label, runId).then(resolve);
       });
