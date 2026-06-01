@@ -44,7 +44,7 @@ const SPEAKING_RECORDS_STORAGE_KEY = 'english-bao-speaking-records-v1';
 const MAX_REVIEW_ITEMS = 80;
 const MAX_WRITING_RECORDS = 30;
 const MAX_SPEAKING_RECORDS = 40;
-const CONTINUOUS_AUDIO_DEADLINE_MS = 45000;
+const CONTINUOUS_AUDIO_DEADLINE_MS = 26000;
 
 const todayKey = () => {
   const date = new Date();
@@ -60,6 +60,11 @@ const normalize = (value) =>
     .replace(/[“”"'.?,!/;:()[\]{}]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
+
+const estimateContinuousAudioMs = (text) => {
+  const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+  return Math.min(26000, Math.max(7500, wordCount * 650 + 4200));
+};
 
 const flattenEntries = (chapters) =>
   chapters.flatMap((chapter) =>
@@ -506,6 +511,7 @@ function App() {
   const [readPlaying, setReadPlaying] = useState(false);
   const [continuousListening, setContinuousListening] = useState(false);
   const [continuousRepeat, setContinuousRepeat] = useState(false);
+  const [continuousDebug, setContinuousDebug] = useState(null);
   const [listening, setListening] = useState(false);
   const [voices, setVoices] = useState([]);
   const [selectedVoiceName, setSelectedVoiceName] = useState(loadVoiceName);
@@ -943,6 +949,7 @@ function App() {
     continuousRunRef.current += 1;
     setContinuousListening(false);
     setContinuousRepeat(false);
+    setContinuousDebug(null);
     stopSpeaking();
     if (message) setReadStatus(message);
   };
@@ -1196,6 +1203,7 @@ function App() {
       const clearWatchdogs = () => {
         window.clearTimeout(startTimer);
         window.clearInterval(stallTimer);
+        window.clearTimeout(maxPlaybackTimer);
       };
       const cleanupCurrentAudio = () => {
         clearWatchdogs();
@@ -1227,6 +1235,14 @@ function App() {
           settle(true);
         }
       }, 5000);
+      const maxPlaybackTimer = window.setTimeout(() => {
+        if (runId !== continuousRunRef.current) {
+          settle(false);
+          return;
+        }
+        setReadStatus(`${label}已到预计时长，自动进入下一步。`);
+        settle(true);
+      }, options.maxDurationMs ?? CONTINUOUS_AUDIO_DEADLINE_MS);
 
       audio.preload = 'auto';
       audio.volume = 1;
@@ -1282,6 +1298,7 @@ function App() {
   const playContinuousAudio = (audioUrl, fallbackText, fallbackOptions, label, runId) =>
     new Promise((resolve) => {
       let settled = false;
+      const maxDurationMs = estimateContinuousAudioMs(fallbackText);
       const finish = (value) => {
         if (settled) return;
         settled = true;
@@ -1296,11 +1313,12 @@ function App() {
         stopSpeaking();
         setReadStatus(`${label}播放等待过久，已自动跳到下一条。`);
         finish(true);
-      }, CONTINUOUS_AUDIO_DEADLINE_MS);
+      }, Math.max(CONTINUOUS_AUDIO_DEADLINE_MS, maxDurationMs + 6000));
 
       playAudioOnce(audioUrl, fallbackText, fallbackOptions, label, runId, {
         reuseAudio: true,
-        skipFallback: true
+        skipFallback: true,
+        maxDurationMs
       }).then(finish);
     });
 
@@ -1635,6 +1653,14 @@ function App() {
 
       for (let round = 1; round <= 2; round += 1) {
         if (runId !== continuousRunRef.current) break;
+        setContinuousDebug({
+          mode: '听力词汇',
+          index: entryIndex + 1,
+          total: playbackEntries.length,
+          round,
+          term: entry.term,
+          stage: '播放例句'
+        });
         setReadStatus(`连续播放例句：第 ${entryIndex + 1} / ${playbackEntries.length} 条，第 ${round} 遍。`);
         const completed = await playContinuousAudio(
           listeningAudioManifest.examples[entry.id],
@@ -1652,6 +1678,7 @@ function App() {
 
     if (runId === continuousRunRef.current) {
       setContinuousListening(false);
+      setContinuousDebug(null);
       setReadPlaying(false);
       setReadStatus('连续播放已完成。');
     }
@@ -1686,6 +1713,14 @@ function App() {
 
       for (let round = 1; round <= 2; round += 1) {
         if (runId !== continuousRunRef.current) break;
+        setContinuousDebug({
+          mode: '跟读例句',
+          index: entryIndex + 1,
+          total: filteredEntries.length,
+          round,
+          term: entry.term,
+          stage: '播放例句'
+        });
         setReadStatus(`跟读例句连续播放：第 ${entryIndex + 1} / ${filteredEntries.length} 条，第 ${round} 遍。`);
         const completed = await playContinuousAudio(
           exampleAudioManifest[entry.example],
@@ -1703,6 +1738,7 @@ function App() {
 
     if (runId === continuousRunRef.current) {
       setContinuousRepeat(false);
+      setContinuousDebug(null);
       setReadPlaying(false);
       setReadStatus('跟读例句连续播放已完成。');
     }
@@ -2601,6 +2637,7 @@ function App() {
               playWord={playListeningWord}
               playExample={playListeningExample}
               continuousListening={continuousListening}
+              continuousDebug={continuousDebug}
               readStatus={readStatus}
               startContinuousExamples={startContinuousExamples}
               stopContinuousExamples={stopContinuousExamples}
@@ -2627,6 +2664,7 @@ function App() {
               stopListening={stopListening}
               playExample={playExample}
               continuousRepeat={continuousRepeat}
+              continuousDebug={continuousDebug}
               startContinuousRepeatExamples={startContinuousRepeatExamples}
               stopContinuousExamples={stopContinuousExamples}
             />
@@ -2814,6 +2852,7 @@ function ListeningPractice({
   playWord,
   playExample,
   continuousListening,
+  continuousDebug,
   readStatus,
   startContinuousExamples,
   stopContinuousExamples
@@ -2851,6 +2890,7 @@ function ListeningPractice({
         {continuousListening ? '停止连续播放' : '连续播放例句，每句两遍'}
       </button>
       {readStatus && <p className="listening-status">{readStatus}</p>}
+      {continuousDebug && <ContinuousDebug debug={continuousDebug} />}
       {continuousListening && (
         <div className="continuous-example-card">
           <span>当前例句</span>
@@ -3253,6 +3293,7 @@ function RepeatPractice({
   stopListening,
   playExample,
   continuousRepeat,
+  continuousDebug,
   startContinuousRepeatExamples,
   stopContinuousExamples
 }) {
@@ -3287,6 +3328,7 @@ function RepeatPractice({
         </button>
         {!SpeechRecognition && <p className="hint">当前浏览器不支持语音识别，建议用 Chrome 打开。</p>}
         {readStatus && <p className="hint neutral">{readStatus}</p>}
+        {continuousDebug && <ContinuousDebug debug={continuousDebug} />}
       </div>
       <button
         type="button"
@@ -3311,6 +3353,16 @@ function RepeatPractice({
       </div>
 
       <CoachNote tone={coachTone} coach={coach} />
+    </div>
+  );
+}
+
+function ContinuousDebug({ debug }) {
+  return (
+    <div className="continuous-debug">
+      <span>{debug.mode} · {debug.index} / {debug.total} · 第 {debug.round} 遍</span>
+      <strong>{debug.term}</strong>
+      <p>{debug.stage}</p>
     </div>
   );
 }
