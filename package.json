@@ -11,6 +11,8 @@
     "audio:listening": "node scripts/generate-listening-audio.mjs",
     "audio:listening:dry": "node scripts/generate-listening-audio.mjs --dry-run --limit=5",
     "audio:normalize": "node scripts/normalize-example-audio.mjs",
+    "audio:repeat-packages": "node scripts/generate-repeat-packages.mjs",
+    "audio:repeat-packages:dry": "node scripts/generate-repeat-packages.mjs --limit=2",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {

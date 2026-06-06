@@ -24,6 +24,7 @@ import { exampleAudioManifest } from './exampleAudioManifest';
 import { generatedExampleTranslations } from './exampleTranslations';
 import { listeningAudioManifest } from './listeningAudioManifest';
 import { listeningVocabEntries } from './listeningVocabData';
+import { repeatPackageManifest } from './repeatPackageManifest';
 import { vocabChapters } from './vocabData';
 import './styles.css';
 
@@ -65,6 +66,8 @@ const estimateContinuousAudioMs = (text) => {
   const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
   return Math.min(26000, Math.max(7500, wordCount * 650 + 4200));
 };
+
+const sectionPackageKey = (chapterId, sectionTitle) => `${chapterId}::${sectionTitle}`;
 
 const flattenEntries = (chapters) =>
   chapters.flatMap((chapter) =>
@@ -646,6 +649,7 @@ function App() {
   const sectionRecords = scores[sectionKey] ?? {};
   const sectionDone = Object.keys(sectionRecords).length;
   const expressionScore = scoreExpression(englishExpression, current.term);
+  const currentRepeatPackage = repeatPackageManifest[sectionPackageKey(current.chapterId, current.sectionTitle)];
 
   useEffect(() => {
     setIndex((value) => Math.min(value, Math.max(filteredEntries.length - 1, 0)));
@@ -1322,6 +1326,129 @@ function App() {
       }).then(finish);
     });
 
+  const playRepeatPackage = (audioPackage, packageEntries, startEntry, runId) =>
+    new Promise((resolve) => {
+      if (!audioPackage?.url || !packageEntries.length || runId !== continuousRunRef.current) {
+        resolve(false);
+        return;
+      }
+
+      stopSpeaking();
+      const audio = continuousAudioRef.current || new Audio();
+      continuousAudioRef.current = audio;
+      let settled = false;
+      const offsets = packageEntries
+        .map((entry, index) => ({
+          entry,
+          index,
+          time: audioPackage.offsets?.[entry.id]
+        }))
+        .filter((item) => typeof item.time === 'number')
+        .sort((a, b) => a.time - b.time);
+      const startTime = audioPackage.offsets?.[startEntry.id] ?? 0;
+      let lastActiveId = '';
+
+      const clearTimers = () => {
+        window.clearTimeout(packageTimer);
+        window.clearInterval(packageStallTimer);
+      };
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        clearTimers();
+        if (audioStopResolverRef.current === finish) audioStopResolverRef.current = null;
+        if (audioRef.current === audio) audioRef.current = null;
+        cleanupAudio(audio);
+        resolve(value);
+      };
+      const updateCurrentEntry = () => {
+        if (runId !== continuousRunRef.current) return;
+        const currentTime = audio.currentTime || startTime;
+        let active = offsets[0];
+        for (const item of offsets) {
+          if (item.time <= currentTime) active = item;
+          else break;
+        }
+        if (!active) return;
+        const nextIndex = filteredEntries.findIndex((entry) => entry.id === active.entry.id);
+        if (nextIndex >= 0) {
+          setIndex(nextIndex);
+          if (active.entry.id !== lastActiveId) {
+            lastActiveId = active.entry.id;
+            saveProgress({
+              ...makeCurrentProgress(),
+              mode: 'repeat',
+              index: nextIndex,
+              currentId: active.entry.id
+            });
+          }
+        }
+        setContinuousDebug({
+          mode: '跟读音频包',
+          index: active.index + 1,
+          total: packageEntries.length,
+          round: 1,
+          term: active.entry.term,
+          stage: '播放小章节长音频'
+        });
+      };
+
+      let lastProgressAt = Date.now();
+      const packageTimer = window.setTimeout(() => {
+        if (runId !== continuousRunRef.current) {
+          finish(false);
+          return;
+        }
+        setReadStatus('小章节音频包播放等待过久，已自动结束。');
+        finish(true);
+      }, Math.max(60000, ((audioPackage.duration || 0) - startTime) * 1000 + 8000));
+      const packageStallTimer = window.setInterval(() => {
+        if (runId !== continuousRunRef.current) {
+          finish(false);
+          return;
+        }
+        if (!audio.paused && Date.now() - lastProgressAt > 20000) {
+          setReadStatus('小章节音频包播放卡住，已自动结束。');
+          finish(true);
+        }
+      }, 5000);
+
+      audio.preload = 'auto';
+      audio.volume = 1;
+      audio.src = audioPackage.url;
+      audioRef.current = audio;
+      audioStopResolverRef.current = finish;
+      audio.onplaying = () => {
+        lastProgressAt = Date.now();
+        setReadPlaying(true);
+        setReadStatus('正在播放小章节连续音频包。');
+        updateCurrentEntry();
+      };
+      audio.ontimeupdate = () => {
+        lastProgressAt = Date.now();
+        updateCurrentEntry();
+      };
+      audio.onended = () => finish(runId === continuousRunRef.current);
+      audio.onerror = () => finish(false);
+
+      setReadPlaying(true);
+      setReadStatus('正在启动小章节连续音频包。');
+      setPlaybackMediaSession(startEntry.example, '英语学习宝 · 小章节音频包');
+      try {
+        audio.currentTime = startTime;
+      } catch {
+        // Some browsers only allow seeking after metadata loads.
+      }
+      audio.onloadedmetadata = () => {
+        try {
+          audio.currentTime = startTime;
+        } catch {
+          // Ignore seek failures; playback will start from the beginning of the package.
+        }
+      };
+      audio.play().catch(() => finish(false));
+    });
+
   const playListeningWord = () => {
     stopContinuousExamples('');
     saveCurrentProgress();
@@ -1693,48 +1820,80 @@ function App() {
     setSpokenText('');
     setSpeechScore(null);
     setSpeechStatus('');
-    setReadStatus('跟读例句连续播放启动中。每条例句会播放两遍。');
 
-    const startIndex = index >= 0 ? index : 0;
-    for (let offset = 0; offset < filteredEntries.length; offset += 1) {
-      if (runId !== continuousRunRef.current) break;
-      const entryIndex = (startIndex + offset) % filteredEntries.length;
-      const entry = filteredEntries[entryIndex];
-      setIndex(entryIndex);
-      saveProgress({
-        ...makeCurrentProgress(),
-        mode: 'repeat',
-        index: entryIndex,
-        currentId: entry.id
-      });
-      setSpokenText('');
-      setSpeechScore(null);
-      setSpeechStatus('');
+    const playShortAudioQueue = async (fallbackStartIndex = index >= 0 ? index : 0) => {
+      setReadStatus('跟读例句连续播放启动中。每条例句会播放两遍。');
 
-      for (let round = 1; round <= 2; round += 1) {
+      for (let offset = 0; offset < filteredEntries.length; offset += 1) {
         if (runId !== continuousRunRef.current) break;
-        setContinuousDebug({
-          mode: '跟读例句',
-          index: entryIndex + 1,
-          total: filteredEntries.length,
-          round,
-          term: entry.term,
-          stage: '播放例句'
+        const entryIndex = (fallbackStartIndex + offset) % filteredEntries.length;
+        const entry = filteredEntries[entryIndex];
+        setIndex(entryIndex);
+        saveProgress({
+          ...makeCurrentProgress(),
+          mode: 'repeat',
+          index: entryIndex,
+          currentId: entry.id
         });
-        setReadStatus(`跟读例句连续播放：第 ${entryIndex + 1} / ${filteredEntries.length} 条，第 ${round} 遍。`);
-        const completed = await playContinuousAudio(
-          exampleAudioManifest[entry.example],
-          entry.example,
-          { mode: 'guided', rate: 0.62, pause: 420 },
-          '例句',
-          runId
-        );
-        if (!completed || runId !== continuousRunRef.current) break;
-        if (round < 2) await wait(700);
+        setSpokenText('');
+        setSpeechScore(null);
+        setSpeechStatus('');
+
+        for (let round = 1; round <= 2; round += 1) {
+          if (runId !== continuousRunRef.current) break;
+          setContinuousDebug({
+            mode: '跟读例句',
+            index: entryIndex + 1,
+            total: filteredEntries.length,
+            round,
+            term: entry.term,
+            stage: '播放例句'
+          });
+          setReadStatus(`跟读例句连续播放：第 ${entryIndex + 1} / ${filteredEntries.length} 条，第 ${round} 遍。`);
+          const completed = await playContinuousAudio(
+            exampleAudioManifest[entry.example],
+            entry.example,
+            { mode: 'guided', rate: 0.62, pause: 420 },
+            '例句',
+            runId
+          );
+          if (!completed || runId !== continuousRunRef.current) break;
+          if (round < 2) await wait(700);
+        }
+        if (runId !== continuousRunRef.current) break;
+        await wait(950);
       }
-      if (runId !== continuousRunRef.current) break;
-      await wait(950);
+    };
+
+    if (currentRepeatPackage?.url) {
+      const packageEntries = sectionEntries;
+      const startEntry = current;
+      const fallbackStartIndex = index >= 0 ? index : 0;
+      setContinuousDebug({
+        mode: '跟读音频包',
+        index: Math.max(packageEntries.findIndex((entry) => entry.id === startEntry.id), 0) + 1,
+        total: packageEntries.length,
+        round: 1,
+        term: startEntry.term,
+        stage: '准备小章节长音频'
+      });
+      setReadStatus('正在启动小章节连续音频包。');
+      const completed = await playRepeatPackage(currentRepeatPackage, packageEntries, startEntry, runId);
+      if (!completed && runId === continuousRunRef.current) {
+        setReadStatus('小章节音频包暂时不能播放，已切换到逐条例句播放。');
+        await wait(500);
+        await playShortAudioQueue(fallbackStartIndex);
+      }
+      if (runId === continuousRunRef.current) {
+        setContinuousRepeat(false);
+        setContinuousDebug(null);
+        setReadPlaying(false);
+        setReadStatus(completed ? '小章节连续音频包播放完成。' : '跟读例句连续播放完成。');
+      }
+      return;
     }
+
+    await playShortAudioQueue();
 
     if (runId === continuousRunRef.current) {
       setContinuousRepeat(false);
