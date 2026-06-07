@@ -36,6 +36,7 @@ const isAppleMobileBrowser =
 const REVIEW_STORAGE_KEY = 'english-bao-recent-study-v1';
 const PROGRESS_STORAGE_KEY = 'english-bao-last-progress-v1';
 const VOICE_STORAGE_KEY = 'english-bao-voice-v1';
+const REPEAT_PACKAGE_POSITION_STORAGE_KEY = 'english-bao-repeat-package-position-v1';
 const DAILY_STUDY_STORAGE_KEY = 'english-bao-daily-study-v1';
 const LAST_SESSION_REVIEW_STORAGE_KEY = 'english-bao-last-session-review-v1';
 const LISTENING_DAILY_STUDY_STORAGE_KEY = 'english-bao-listening-daily-study-v1';
@@ -487,6 +488,23 @@ const loadVoiceName = () => {
   }
 };
 
+const loadRepeatPackagePositions = () => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(REPEAT_PACKAGE_POSITION_STORAGE_KEY) || '{}');
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+const saveRepeatPackagePositions = (positions) => {
+  try {
+    localStorage.setItem(REPEAT_PACKAGE_POSITION_STORAGE_KEY, JSON.stringify(positions));
+  } catch {
+    // Audio position is helpful but non-critical; ignore storage quota/private mode errors.
+  }
+};
+
 function App() {
   const allEntries = useMemo(() => flattenEntries(vocabChapters), []);
   const savedProgress = useMemo(() => loadProgress(), []);
@@ -560,6 +578,7 @@ function App() {
   const audioStopResolverRef = useRef(null);
   const utteranceRef = useRef(null);
   const continuousRunRef = useRef(0);
+  const repeatPackagePositionRef = useRef(loadRepeatPackagePositions());
 
   const selectedChapter = vocabChapters.find((chapter) => chapter.id === chapterId);
   const sections = selectedChapter?.sections ?? [];
@@ -914,6 +933,12 @@ function App() {
   const cleanupAudio = (audio) => {
     audio.onended = null;
     audio.onerror = null;
+    audio.onplaying = null;
+    audio.ontimeupdate = null;
+    audio.onloadedmetadata = null;
+    audio.onwaiting = null;
+    audio.onstalled = null;
+    audio.onpause = null;
     const objectUrl = audio.dataset?.objectUrl;
     try {
       audio.pause();
@@ -1345,12 +1370,29 @@ function App() {
         }))
         .filter((item) => typeof item.time === 'number')
         .sort((a, b) => a.time - b.time);
-      const startTime = audioPackage.offsets?.[startEntry.id] ?? 0;
+      const packageKey = audioPackage.url;
+      const savedPosition = repeatPackagePositionRef.current[packageKey];
+      const entryStartTime = audioPackage.offsets?.[startEntry.id] ?? 0;
+      const canResumePackage =
+        savedPosition?.entryId === startEntry.id &&
+        typeof savedPosition.time === 'number' &&
+        savedPosition.time >= entryStartTime &&
+        savedPosition.time < (audioPackage.duration || Number.POSITIVE_INFINITY) - 1;
+      const packageDuration = audioPackage.duration || 0;
+      const startTime = Math.min(
+        canResumePackage ? savedPosition.time + 0.4 : entryStartTime,
+        packageDuration ? Math.max(packageDuration - 0.5, 0) : Number.POSITIVE_INFINITY
+      );
       let lastActiveId = '';
+      let lastSavedAt = 0;
+      let lastProgressAt = Date.now();
+      let lastCurrentTime = startTime;
+      let recoveries = 0;
+      let earlyEndRecoveries = 0;
 
       const clearTimers = () => {
         window.clearTimeout(packageTimer);
-        window.clearInterval(packageStallTimer);
+        window.clearInterval(packageWatchTimer);
       };
       const finish = (value) => {
         if (settled) return;
@@ -1364,6 +1406,10 @@ function App() {
       const updateCurrentEntry = () => {
         if (runId !== continuousRunRef.current) return;
         const currentTime = audio.currentTime || startTime;
+        if (Math.abs(currentTime - lastCurrentTime) > 0.08) {
+          lastCurrentTime = currentTime;
+          lastProgressAt = Date.now();
+        }
         let active = offsets[0];
         for (const item of offsets) {
           if (item.time <= currentTime) active = item;
@@ -1382,6 +1428,18 @@ function App() {
               currentId: active.entry.id
             });
           }
+          if (Date.now() - lastSavedAt > 2500) {
+            lastSavedAt = Date.now();
+            repeatPackagePositionRef.current = {
+              ...repeatPackagePositionRef.current,
+              [packageKey]: {
+                time: currentTime,
+                entryId: active.entry.id,
+                updatedAt: Date.now()
+              }
+            };
+            saveRepeatPackagePositions(repeatPackagePositionRef.current);
+          }
         }
         setContinuousDebug({
           mode: '跟读音频包',
@@ -1393,23 +1451,42 @@ function App() {
         });
       };
 
-      let lastProgressAt = Date.now();
       const packageTimer = window.setTimeout(() => {
         if (runId !== continuousRunRef.current) {
           finish(false);
           return;
         }
-        setReadStatus('小章节音频包播放等待过久，已自动结束。');
+        const duration = audio.duration || audioPackage.duration || 0;
+        if (duration && audio.currentTime < duration - 1.5) {
+          setReadStatus('小章节音频包播放超时，已切换到逐条例句播放。');
+          finish(false);
+          return;
+        }
+        setReadStatus('小章节连续音频包播放完成。');
         finish(true);
-      }, Math.max(60000, ((audioPackage.duration || 0) - startTime) * 1000 + 8000));
-      const packageStallTimer = window.setInterval(() => {
+      }, Math.max(90000, ((audioPackage.duration || 0) - startTime) * 1000 + 60000));
+      const packageWatchTimer = window.setInterval(() => {
         if (runId !== continuousRunRef.current) {
           finish(false);
           return;
         }
-        if (!audio.paused && Date.now() - lastProgressAt > 20000) {
-          setReadStatus('小章节音频包播放卡住，已自动结束。');
-          finish(true);
+        updateCurrentEntry();
+        const idleMs = Date.now() - lastProgressAt;
+        if (audio.paused && !settled) {
+          recoveries += 1;
+          setReadStatus('连续播放短暂停顿，正在自动继续。');
+          audio.play().catch(() => {
+            if (recoveries >= 3) finish(false);
+          });
+          return;
+        }
+        if (!audio.paused && idleMs > 12000 && idleMs <= 60000) {
+          setReadStatus('连续播放正在缓冲，已保持当前进度。');
+          return;
+        }
+        if (!audio.paused && idleMs > 60000) {
+          setReadStatus('小章节音频包长时间无进度，已切换到逐条例句播放。');
+          finish(false);
         }
       }, 5000);
 
@@ -1420,6 +1497,7 @@ function App() {
       audioStopResolverRef.current = finish;
       audio.onplaying = () => {
         lastProgressAt = Date.now();
+        lastCurrentTime = audio.currentTime || startTime;
         setReadPlaying(true);
         setReadStatus('正在播放小章节连续音频包。');
         updateCurrentEntry();
@@ -1428,7 +1506,43 @@ function App() {
         lastProgressAt = Date.now();
         updateCurrentEntry();
       };
-      audio.onended = () => finish(runId === continuousRunRef.current);
+      audio.onwaiting = () => {
+        setReadStatus('连续播放正在缓冲，稍等一下会继续。');
+      };
+      audio.onstalled = () => {
+        setReadStatus('连续播放网络暂时卡住，正在保留进度。');
+      };
+      audio.onpause = () => {
+        if (settled || runId !== continuousRunRef.current || audio.ended) return;
+        setReadStatus('连续播放短暂停顿，正在自动继续。');
+      };
+      audio.onended = () => {
+        const currentTime = audio.currentTime || 0;
+        const duration = audio.duration || audioPackage.duration || 0;
+        if (runId === continuousRunRef.current && duration && currentTime < duration - 1.5 && earlyEndRecoveries < 2) {
+          earlyEndRecoveries += 1;
+          setReadStatus('连续播放提前中断，正在从当前位置继续。');
+          try {
+            audio.currentTime = Math.min(currentTime + 0.4, duration - 0.5);
+          } catch {
+            // Ignore seek failures and try to resume from the browser's current position.
+          }
+          audio.play().catch(() => finish(false));
+          return;
+        }
+        if (runId === continuousRunRef.current) {
+          repeatPackagePositionRef.current = {
+            ...repeatPackagePositionRef.current,
+            [packageKey]: {
+              time: 0,
+              entryId: '',
+              updatedAt: Date.now()
+            }
+          };
+          saveRepeatPackagePositions(repeatPackagePositionRef.current);
+        }
+        finish(runId === continuousRunRef.current);
+      };
       audio.onerror = () => finish(false);
 
       setReadPlaying(true);
@@ -1880,9 +1994,11 @@ function App() {
       setReadStatus('正在启动小章节连续音频包。');
       const completed = await playRepeatPackage(currentRepeatPackage, packageEntries, startEntry, runId);
       if (!completed && runId === continuousRunRef.current) {
+        const savedPackagePosition = repeatPackagePositionRef.current[currentRepeatPackage.url];
+        const resumeIndex = filteredEntries.findIndex((entry) => entry.id === savedPackagePosition?.entryId);
         setReadStatus('小章节音频包暂时不能播放，已切换到逐条例句播放。');
         await wait(500);
-        await playShortAudioQueue(fallbackStartIndex);
+        await playShortAudioQueue(resumeIndex >= 0 ? resumeIndex : fallbackStartIndex);
       }
       if (runId === continuousRunRef.current) {
         setContinuousRepeat(false);
