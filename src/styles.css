@@ -511,6 +511,18 @@ h1 {
   background: #b42318;
 }
 
+.repeat-primary-controls {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.repeat-primary-controls .listen-button,
+.repeat-primary-controls .record-button {
+  min-height: 52px;
+  padding: 0 12px;
+  font-size: 15px;
+}
+
 .hint {
   grid-column: 1 / -1;
   margin: 0;
@@ -1346,6 +1358,10 @@ textarea[readonly] {
     grid-template-columns: 1fr;
   }
 
+  .repeat-primary-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .score-meter {
     text-align: left;
   }
@@ -1606,6 +1622,18 @@ textarea[readonly] {
 
   .example p {
     font-size: 18px;
+  }
+
+  .repeat-primary-controls {
+    gap: 8px;
+  }
+
+  .repeat-primary-controls .listen-button,
+  .repeat-primary-controls .record-button {
+    min-height: 48px;
+    padding: 0 8px;
+    font-size: 14px;
+    line-height: 1.2;
   }
 
   .mode-tabs button,

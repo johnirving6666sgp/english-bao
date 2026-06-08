@@ -3557,9 +3557,9 @@ function RepeatPractice({
         </div>
       </div>
 
-      <div className="repeat-controls">
+      <div className="repeat-controls repeat-primary-controls">
         <button className="listen-button selected" onClick={() => playExample(current.example, { mode: 'guided' })} disabled={listening || continuousRepeat}>
-          <Volume2 size={22} />
+          <Volume2 size={19} />
           {continuousRepeat ? '连续播放中' : listening ? '跟读中' : '自然带读例句'}
         </button>
         <button
@@ -3567,7 +3567,7 @@ function RepeatPractice({
           onClick={listening ? stopListening : startListening}
           disabled={!SpeechRecognition || continuousRepeat}
         >
-          {listening ? <MicOff size={22} /> : <Mic size={22} />}
+          {listening ? <MicOff size={19} /> : <Mic size={19} />}
           {listening ? '停止识别' : readPlaying ? '停止带读并跟读' : '开始跟读'}
         </button>
         {!SpeechRecognition && <p className="hint">当前浏览器不支持语音识别，建议用 Chrome 打开。</p>}
