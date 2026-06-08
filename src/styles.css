@@ -183,7 +183,13 @@ input:disabled {
 
 .offline-box {
   display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 10px;
+}
+
+.offline-box > div,
+.offline-box p {
+  grid-column: 1 / -1;
 }
 
 .review-button {
@@ -241,6 +247,11 @@ input:disabled {
   color: #182230;
   background: #d8e9f8;
   font-weight: 900;
+}
+
+.offline-button.quiet {
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .review-box span,
@@ -1394,10 +1405,14 @@ textarea[readonly] {
   }
 
   .offline-box {
-    grid-template-columns: minmax(0, 1fr) minmax(160px, 0.6fr);
+    grid-template-columns: minmax(0, 1fr) repeat(2, minmax(132px, 0.34fr));
     align-items: center;
     gap: 10px;
     padding: 9px 12px;
+  }
+
+  .offline-box > div {
+    grid-column: auto;
   }
 
   .review-box small,
@@ -1574,8 +1589,13 @@ textarea[readonly] {
   }
 
   .offline-box {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 7px;
+    grid-column: 1 / -1;
+  }
+
+  .offline-box > div,
+  .offline-box p {
     grid-column: 1 / -1;
   }
 

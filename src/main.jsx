@@ -651,6 +651,16 @@ function App() {
   const sectionDone = Object.keys(sectionRecords).length;
   const expressionScore = scoreExpression(englishExpression, current.term);
   const currentRepeatPackage = repeatPackageManifest[sectionPackageKey(current.chapterId, current.sectionTitle)];
+  const chapterRepeatEntries = useMemo(
+    () => allEntries.filter((entry) => entry.chapterId === current.chapterId),
+    [allEntries, current.chapterId]
+  );
+  const chapterRepeatPackageUrls = useMemo(() => {
+    const sectionTitles = [...new Set(chapterRepeatEntries.map((entry) => entry.sectionTitle))];
+    return sectionTitles
+      .map((title) => repeatPackageManifest[sectionPackageKey(current.chapterId, title)]?.url)
+      .filter(Boolean);
+  }, [chapterRepeatEntries, current.chapterId]);
   const offlineAudioUrls = useMemo(() => {
     if (mode === 'listening') {
       return [
@@ -668,10 +678,18 @@ function App() {
 
     return [];
   }, [currentRepeatPackage?.url, filteredListeningEntries, mode, sectionEntries]);
+  const offlineChapterAudioUrls = useMemo(() => {
+    if (mode !== 'repeat') return [];
+    return [
+      ...chapterRepeatPackageUrls,
+      ...chapterRepeatEntries.map((entry) => exampleAudioManifest[entry.example])
+    ].filter(Boolean);
+  }, [chapterRepeatEntries, chapterRepeatPackageUrls, mode]);
   const offlineScopeLabel =
     mode === 'listening'
       ? `${listeningScene === 'all' ? '全部听力词汇' : listeningScene} · ${filteredListeningEntries.length} 词`
       : `${current.chapterTitle} / ${current.sectionTitle} · ${sectionEntries.length} 词`;
+  const offlineChapterScopeLabel = `${current.chapterTitle} · ${chapterRepeatEntries.length} 词`;
 
   useEffect(() => {
     setIndex((value) => Math.min(value, Math.max(filteredEntries.length - 1, 0)));
@@ -797,10 +815,10 @@ function App() {
     saveProgress(makeCurrentProgress());
   }
 
-  const cacheForOffline = async () => {
-    if (!supportsOfflineCache || !offlineAudioUrls.length || offlineCaching) return;
+  const cacheForOffline = async (urls = offlineAudioUrls, label = offlineScopeLabel) => {
+    if (!supportsOfflineCache || !urls.length || offlineCaching) return;
     setOfflineCaching(true);
-    const uniqueUrls = [...new Set(offlineAudioUrls)];
+    const uniqueUrls = [...new Set(urls)];
     let cachedCount = 0;
     const failed = [];
 
@@ -821,7 +839,7 @@ function App() {
 
       const audioCache = await caches.open('english-bao-audio-v1');
       for (const [position, url] of uniqueUrls.entries()) {
-        setOfflineStatus(`正在缓存 ${position + 1} / ${uniqueUrls.length}：${offlineScopeLabel}`);
+        setOfflineStatus(`正在缓存 ${position + 1} / ${uniqueUrls.length}：${label}`);
         try {
           const response = await fetch(url, { cache: 'reload' });
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -835,7 +853,7 @@ function App() {
       setOfflineStatus(
         failed.length
           ? `已缓存 ${cachedCount} 条音频，${failed.length} 条失败；联网后可再点一次补齐。`
-          : `离线缓存完成：${offlineScopeLabel}。`
+          : `离线缓存完成：${label}。`
       );
     } catch {
       setOfflineStatus('离线缓存失败。请确认浏览器允许站点存储，并保持联网后再试。');
@@ -2729,12 +2747,23 @@ function App() {
                 <button
                   type="button"
                   className="offline-button"
-                  onClick={cacheForOffline}
+                  onClick={() => cacheForOffline()}
                   disabled={!supportsOfflineCache || offlineCaching || !offlineAudioUrls.length}
                 >
                   <CheckCircle2 size={16} />
-                  {offlineCaching ? '缓存中' : '缓存当前模块'}
+                  {offlineCaching ? '缓存中' : mode === 'listening' ? '缓存当前列表' : '缓存小章节'}
                 </button>
+                {mode === 'repeat' && (
+                  <button
+                    type="button"
+                    className="offline-button quiet"
+                    onClick={() => cacheForOffline(offlineChapterAudioUrls, offlineChapterScopeLabel)}
+                    disabled={!supportsOfflineCache || offlineCaching || !offlineChapterAudioUrls.length}
+                  >
+                    <CheckCircle2 size={16} />
+                    缓存当前章节
+                  </button>
+                )}
                 {offlineStatus && <p>{offlineStatus}</p>}
               </section>
             )}
