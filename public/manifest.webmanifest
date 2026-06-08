@@ -1,0 +1,11 @@
+{
+  "name": "英语学习宝",
+  "short_name": "英语学习宝",
+  "description": "雅思词汇跟读、听力词汇、写作和口语训练",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f3f5f7",
+  "theme_color": "#182230",
+  "lang": "zh-CN"
+}

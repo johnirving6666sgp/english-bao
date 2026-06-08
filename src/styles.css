@@ -83,6 +83,7 @@ button:disabled {
 .field label,
 .review-box span,
 .finish-box span,
+.offline-box span,
 .stats span,
 .card-meta span,
 .example span,
@@ -161,6 +162,7 @@ input:disabled {
 
 .review-box,
 .finish-box,
+.offline-box,
 .stats div {
   padding: 15px;
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -177,6 +179,11 @@ input:disabled {
 .finish-box {
   display: grid;
   gap: 12px;
+}
+
+.offline-box {
+  display: grid;
+  gap: 10px;
 }
 
 .review-button {
@@ -222,19 +229,42 @@ input:disabled {
   font-weight: 900;
 }
 
+.offline-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  min-height: 38px;
+  border: 0;
+  border-radius: 8px;
+  color: #182230;
+  background: #d8e9f8;
+  font-weight: 900;
+}
+
 .review-box span,
 .finish-box span,
+.offline-box span,
 .stats span {
   color: #b8c2d2;
   font-size: 12px;
 }
 
-.review-box small {
+.review-box small,
+.offline-box small {
   display: block;
   margin-top: 8px;
   color: #d8dee8;
   font-size: 12px;
   line-height: 1.45;
+}
+
+.offline-box p {
+  margin: 0;
+  color: #d8dee8;
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .review-box strong,
@@ -1343,6 +1373,7 @@ textarea[readonly] {
   .search-field,
   .review-box,
   .finish-box,
+  .offline-box,
   .stats {
     grid-column: 1 / -1;
   }
@@ -1362,10 +1393,23 @@ textarea[readonly] {
     padding: 9px 12px;
   }
 
-  .review-box small {
+  .offline-box {
+    grid-template-columns: minmax(0, 1fr) minmax(160px, 0.6fr);
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+  }
+
+  .review-box small,
+  .offline-box small {
     margin-top: 2px;
     font-size: 10px;
     line-height: 1.25;
+  }
+
+  .offline-box p {
+    grid-column: 1 / -1;
+    font-size: 11px;
   }
 
   .review-box strong,
@@ -1381,7 +1425,8 @@ textarea[readonly] {
   }
 
   .review-button,
-  .finish-button {
+  .finish-button,
+  .offline-button {
     min-height: 34px;
     border-radius: 7px;
     font-size: 13px;
@@ -1511,6 +1556,7 @@ textarea[readonly] {
 
   .review-box,
   .finish-box,
+  .offline-box,
   .stats div {
     padding: 8px 10px;
   }
@@ -1527,7 +1573,14 @@ textarea[readonly] {
     grid-column: 1 / -1;
   }
 
-  .review-box small {
+  .offline-box {
+    grid-template-columns: 1fr;
+    gap: 7px;
+    grid-column: 1 / -1;
+  }
+
+  .review-box small,
+  .offline-box small {
     margin-top: 2px;
     font-size: 10px;
     line-height: 1.25;
@@ -1552,14 +1605,16 @@ textarea[readonly] {
   }
 
   .review-button,
-  .finish-button {
+  .finish-button,
+  .offline-button {
     min-height: 34px;
     gap: 5px;
     border-radius: 7px;
   }
 
   .review-button,
-  .finish-button {
+  .finish-button,
+  .offline-button {
     font-size: 13px;
   }
 

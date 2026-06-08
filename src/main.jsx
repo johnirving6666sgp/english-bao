@@ -30,6 +30,7 @@ import './styles.css';
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
 const SpeechSynthesis = window.speechSynthesis || null;
+const supportsOfflineCache = 'serviceWorker' in navigator && 'caches' in window;
 const isAppleMobileBrowser =
   /iPad|iPhone|iPod/.test(navigator.userAgent) ||
   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -69,6 +70,14 @@ const estimateContinuousAudioMs = (text) => {
 };
 
 const sectionPackageKey = (chapterId, sectionTitle) => `${chapterId}::${sectionTitle}`;
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      // Offline support is an enhancement; the app should still work if registration is blocked.
+    });
+  });
+}
 
 const flattenEntries = (chapters) =>
   chapters.flatMap((chapter) =>
@@ -507,6 +516,8 @@ function App() {
   const [listening, setListening] = useState(false);
   const [voices, setVoices] = useState([]);
   const [selectedVoiceName, setSelectedVoiceName] = useState(loadVoiceName);
+  const [offlineStatus, setOfflineStatus] = useState('');
+  const [offlineCaching, setOfflineCaching] = useState(false);
   const [scores, setScores] = useState({});
   const [sectionResult, setSectionResult] = useState(null);
   const [dailyStudy, setDailyStudy] = useState(loadDailyStudy);
@@ -640,6 +651,27 @@ function App() {
   const sectionDone = Object.keys(sectionRecords).length;
   const expressionScore = scoreExpression(englishExpression, current.term);
   const currentRepeatPackage = repeatPackageManifest[sectionPackageKey(current.chapterId, current.sectionTitle)];
+  const offlineAudioUrls = useMemo(() => {
+    if (mode === 'listening') {
+      return [
+        ...filteredListeningEntries.map((entry) => listeningAudioManifest.words[entry.id]),
+        ...filteredListeningEntries.map((entry) => listeningAudioManifest.examples[entry.id])
+      ].filter(Boolean);
+    }
+
+    if (mode === 'repeat') {
+      return [
+        currentRepeatPackage?.url,
+        ...sectionEntries.map((entry) => exampleAudioManifest[entry.example])
+      ].filter(Boolean);
+    }
+
+    return [];
+  }, [currentRepeatPackage?.url, filteredListeningEntries, mode, sectionEntries]);
+  const offlineScopeLabel =
+    mode === 'listening'
+      ? `${listeningScene === 'all' ? '全部听力词汇' : listeningScene} · ${filteredListeningEntries.length} 词`
+      : `${current.chapterTitle} / ${current.sectionTitle} · ${sectionEntries.length} 词`;
 
   useEffect(() => {
     setIndex((value) => Math.min(value, Math.max(filteredEntries.length - 1, 0)));
@@ -764,6 +796,53 @@ function App() {
   function saveCurrentProgress() {
     saveProgress(makeCurrentProgress());
   }
+
+  const cacheForOffline = async () => {
+    if (!supportsOfflineCache || !offlineAudioUrls.length || offlineCaching) return;
+    setOfflineCaching(true);
+    const uniqueUrls = [...new Set(offlineAudioUrls)];
+    let cachedCount = 0;
+    const failed = [];
+
+    try {
+      setOfflineStatus('正在准备离线缓存。');
+      await navigator.serviceWorker?.ready?.catch(() => null);
+
+      const appCache = await caches.open('english-bao-app-v1');
+      const shellUrls = [
+        '/',
+        '/index.html',
+        '/manifest.webmanifest',
+        ...Array.from(document.querySelectorAll('script[src], link[href]'))
+          .map((node) => node.getAttribute('src') || node.getAttribute('href'))
+          .filter((url) => url && (url.startsWith('/') || url.startsWith(window.location.origin)))
+      ];
+      await Promise.allSettled([...new Set(shellUrls)].map((url) => appCache.add(url)));
+
+      const audioCache = await caches.open('english-bao-audio-v1');
+      for (const [position, url] of uniqueUrls.entries()) {
+        setOfflineStatus(`正在缓存 ${position + 1} / ${uniqueUrls.length}：${offlineScopeLabel}`);
+        try {
+          const response = await fetch(url, { cache: 'reload' });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          await audioCache.put(url, response);
+          cachedCount += 1;
+        } catch {
+          failed.push(url);
+        }
+      }
+
+      setOfflineStatus(
+        failed.length
+          ? `已缓存 ${cachedCount} 条音频，${failed.length} 条失败；联网后可再点一次补齐。`
+          : `离线缓存完成：${offlineScopeLabel}。`
+      );
+    } catch {
+      setOfflineStatus('离线缓存失败。请确认浏览器允许站点存储，并保持联网后再试。');
+    } finally {
+      setOfflineCaching(false);
+    }
+  };
 
   function resetCardState() {
     stopSpeaking();
@@ -2640,6 +2719,25 @@ function App() {
                 />
               </div>
             </div>
+
+            {(mode === 'repeat' || mode === 'listening') && (
+              <section className="offline-box">
+                <div>
+                  <span>离线练习</span>
+                  <small>{supportsOfflineCache ? offlineScopeLabel : '当前浏览器不支持离线缓存'}</small>
+                </div>
+                <button
+                  type="button"
+                  className="offline-button"
+                  onClick={cacheForOffline}
+                  disabled={!supportsOfflineCache || offlineCaching || !offlineAudioUrls.length}
+                >
+                  <CheckCircle2 size={16} />
+                  {offlineCaching ? '缓存中' : '缓存当前模块'}
+                </button>
+                {offlineStatus && <p>{offlineStatus}</p>}
+              </section>
+            )}
 
             <section className="review-box">
               <div>
