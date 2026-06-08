@@ -115,35 +115,6 @@ const getCoachTone = (score) => {
   return 'focus';
 };
 
-const getRepeatCoach = (score, entry) => {
-  if (score === null) {
-    return {
-      title: '陪你练这一句',
-      message: '先听一遍自然带读，再轻轻跟一遍。能开口完成这一轮，就已经在积累语感了。',
-      tip: `今天这张卡的核心词是 ${entry.term}，慢慢把它读熟。`
-    };
-  }
-  if (score >= 90) {
-    return {
-      title: '这一遍很漂亮',
-      message: '读得很顺，已经有进入句子节奏的感觉了。保持这个状态，继续往下一张走就好。',
-      tip: `${entry.term} 这张卡已经很熟了，明天复习时会更轻松。`
-    };
-  }
-  if (score >= 75) {
-    return {
-      title: '这一遍已经不错',
-      message: '你已经把句子读出来了，这就是有效练习。再来一遍时，只要比刚才更放松一点就好。',
-      tip: `${entry.term} 已经被你碰到一次了，再重复一次会更稳。`
-    };
-  }
-  return {
-    title: '先完成就很好',
-    message: '这一句有点挑战，但你已经开始练了。先跟着声音走一遍，不急着读完美。',
-    tip: `把 ${entry.term} 先读顺，句子会一点点跟上来。`
-  };
-};
-
 const getRecallCoach = (score, entry, expression) => {
   const usesTerm = normalize(expression).includes(normalize(entry.term));
   if (score >= 90 && usesTerm) {
@@ -3574,8 +3545,6 @@ function RepeatPractice({
 }) {
   const scoreLabel =
     listening ? '正在跟读' : speechScore === null ? '等待跟读' : speechScore >= 85 ? '很接近' : speechScore >= 60 ? '可以再读慢一点' : '建议重读';
-  const coach = getRepeatCoach(speechScore, current);
-  const coachTone = getCoachTone(speechScore);
 
   return (
     <div className="repeat-layout">
@@ -3626,8 +3595,6 @@ function RepeatPractice({
           <strong>{speechScore === null ? '--' : `${speechScore}%`}</strong>
         </div>
       </div>
-
-      <CoachNote tone={coachTone} coach={coach} />
     </div>
   );
 }
