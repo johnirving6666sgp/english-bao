@@ -1439,53 +1439,60 @@ textarea[readonly] {
   .review-box,
   .finish-box,
   .stats div {
-    padding: 10px;
+    padding: 8px 10px;
   }
 
   .review-box {
-    gap: 8px;
+    gap: 7px;
     margin-top: 0;
   }
 
   .finish-box {
-    align-content: space-between;
+    grid-template-columns: minmax(0, 0.55fr) minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    grid-column: 1 / -1;
   }
 
   .review-box small {
-    margin-top: 3px;
-    font-size: 11px;
+    margin-top: 2px;
+    font-size: 10px;
+    line-height: 1.25;
   }
 
   .review-box strong,
-  .finish-box strong,
-  .stats strong {
-    margin-top: 2px;
+  .finish-box strong {
+    margin-top: 0;
     font-size: 24px;
+    line-height: 1;
+  }
+
+  .stats strong {
+    margin-top: 0;
+    font-size: 22px;
+    line-height: 1;
   }
 
   .review-actions {
-    grid-template-columns: 1fr;
-    gap: 8px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
   }
 
   .review-button,
   .finish-button {
-    min-height: 38px;
-    gap: 6px;
+    min-height: 34px;
+    gap: 5px;
+    border-radius: 7px;
   }
 
-  .review-button {
-    font-size: 14px;
-  }
-
-  .finish-box {
-    grid-template-columns: 1fr;
-    gap: 10px;
+  .review-button,
+  .finish-button {
+    font-size: 13px;
   }
 
   .finish-button {
     width: 100%;
-    padding: 0 14px;
+    padding: 0 10px;
     white-space: nowrap;
   }
 
