@@ -73,9 +73,24 @@ const sectionPackageKey = (chapterId, sectionTitle) => `${chapterId}::${sectionT
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {
-      // Offline support is an enhancement; the app should still work if registration is blocked.
-    });
+    if (import.meta.env.DEV) {
+      navigator.serviceWorker
+        .getRegistrations()
+        .then((registrations) => Promise.all(registrations.map((registration) => registration.unregister())))
+        .then(() => caches?.keys?.())
+        .then((keys = []) => Promise.all(keys.filter((key) => key.startsWith('english-bao-')).map((key) => caches.delete(key))))
+        .catch(() => {
+          // Local cache cleanup is best-effort.
+        });
+      return;
+    }
+
+    navigator.serviceWorker
+      .register('/sw.js')
+      .then((registration) => registration.update())
+      .catch(() => {
+        // Offline support is an enhancement; the app should still work if registration is blocked.
+      });
   });
 }
 
@@ -460,6 +475,38 @@ const saveSpeakingRecords = (records) => {
   localStorage.setItem(SPEAKING_RECORDS_STORAGE_KEY, JSON.stringify(records.slice(0, MAX_SPEAKING_RECORDS)));
 };
 
+const parseSpeakingScore = (value) => {
+  if (typeof value === 'number') return Math.round(value);
+  if (typeof value !== 'string') return null;
+  const match = value.match(/\d+(?:\.\d+)?/);
+  if (!match) return null;
+  return Math.round(Number(match[0]));
+};
+
+const buildSpeakingProgress = (records) => {
+  const scored = records
+    .map((record) => parseSpeakingScore(record.feedback?.score))
+    .filter((score) => Number.isFinite(score));
+  const today = todayKey();
+  const dateSet = new Set(records.map((record) => record.date).filter(Boolean));
+  let streak = 0;
+  const cursor = new Date();
+  while (dateSet.has(cursor.toISOString().slice(0, 10))) {
+    streak += 1;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+
+  return {
+    total: records.length,
+    todayCount: records.filter((record) => record.date === today).length,
+    bestScore: scored.length ? Math.max(...scored) : null,
+    recentAverage: scored.length
+      ? Math.round(scored.slice(0, 3).reduce((sum, score) => sum + score, 0) / Math.min(scored.length, 3))
+      : null,
+    streak
+  };
+};
+
 const loadVoiceName = () => {
   try {
     return localStorage.getItem(VOICE_STORAGE_KEY) || '';
@@ -545,6 +592,7 @@ function App() {
   const [speakingRecording, setSpeakingRecording] = useState(false);
   const [speakingStatus, setSpeakingStatus] = useState('');
   const [speakingRecords, setSpeakingRecords] = useState(loadSpeakingRecords);
+  const [speakingRetryBase, setSpeakingRetryBase] = useState(null);
   const [reviewSourceIds, setReviewSourceIds] = useState([]);
   const [sessionSummary, setSessionSummary] = useState(null);
   const restoredProgressRef = useRef(false);
@@ -626,6 +674,7 @@ function App() {
   const speakingWordCount = speakingTranscript.trim()
     ? speakingTranscript.trim().split(/\s+/).filter(Boolean).length
     : 0;
+  const speakingProgress = useMemo(() => buildSpeakingProgress(speakingRecords), [speakingRecords]);
 
   const current = filteredEntries[index % filteredEntries.length];
   const savedListeningPosition = filteredListeningEntries.findIndex((entry) => entry.id === listeningCurrentId);
@@ -1757,6 +1806,7 @@ function App() {
     setSpeakingTopicId(next.id);
     setSpeakingTranscript('');
     setSpeakingFeedback(null);
+    setSpeakingRetryBase(null);
     setSpeakingError('');
     setSpeakingStatus('');
     setReadStatus('');
@@ -1770,6 +1820,7 @@ function App() {
     setSpeakingTopicId(topic.id);
     setSpeakingTranscript('');
     setSpeakingFeedback(null);
+    setSpeakingRetryBase(null);
     setSpeakingError('');
     setSpeakingStatus('');
     setReadStatus('');
@@ -1778,6 +1829,7 @@ function App() {
   const resetSpeakingDraft = () => {
     setSpeakingTranscript('');
     setSpeakingFeedback(null);
+    setSpeakingRetryBase(null);
     setSpeakingError('');
     setSpeakingStatus('');
     setReadStatus('');
@@ -1894,7 +1946,8 @@ function App() {
         body: JSON.stringify({
           topic: currentSpeakingTopic,
           transcript: speakingTranscript,
-          wordCount: speakingWordCount
+          wordCount: speakingWordCount,
+          previousAttempt: speakingRetryBase
         })
       });
       const data = await response.json().catch(() => ({}));
@@ -1908,13 +1961,35 @@ function App() {
         topic: currentSpeakingTopic,
         transcript: speakingTranscript,
         wordCount: speakingWordCount,
-        feedback: data
+        feedback: data,
+        retryFrom: speakingRetryBase
       });
+      setSpeakingRetryBase(null);
     } catch (error) {
       setSpeakingError(error.message || '口语教练暂时不可用。');
     } finally {
       setSpeakingLoading(false);
     }
+  };
+
+  const startSpeakingRetry = () => {
+    if (!speakingFeedback || !speakingTranscript.trim()) return;
+    setSpeakingRetryBase({
+      topic: currentSpeakingTopic,
+      transcript: speakingTranscript.trim(),
+      wordCount: speakingWordCount,
+      score: speakingFeedback.score || '',
+      naturalVersion: speakingFeedback.naturalVersion || '',
+      retryMission: speakingFeedback.retryMission || ''
+    });
+    setSpeakingTranscript('');
+    setSpeakingFeedback(null);
+    setSpeakingError('');
+    setReadStatus('');
+    setSpeakingStatus('第二遍挑战开始：只改进一个小地方，就算赢。');
+    window.setTimeout(() => {
+      if (!speakingRecording && SpeechRecognition) startSpeakingRecording();
+    }, 120);
   };
 
   const playSpeakingText = (text, label) => {
@@ -2510,6 +2585,7 @@ function App() {
                   setSpeakingTopicId(event.target.value);
                   setSpeakingTranscript('');
                   setSpeakingFeedback(null);
+                  setSpeakingRetryBase(null);
                   setSpeakingError('');
                   setSpeakingStatus('');
                 }}
@@ -2647,7 +2723,7 @@ function App() {
                 <strong>{speakingRecords.length}</strong>
                 <small>
                   {speakingRecords[0]
-                    ? `最近一次 ${speakingRecords[0].date}，评分 ${speakingRecords[0].feedback?.score ?? '--'}`
+                    ? `今天 ${speakingProgress.todayCount} 次，最佳 ${speakingProgress.bestScore ?? '--'}`
                     : '提交点评后自动保存'}
                 </small>
               </div>
@@ -2674,8 +2750,8 @@ function App() {
                 <strong>{currentSpeakingTopic.day}</strong>
               </div>
               <div>
-                <span>主题库</span>
-                <strong>{speakingTopics.length}</strong>
+                <span>连续练习</span>
+                <strong>{speakingProgress.streak}</strong>
               </div>
             </div>
           </>
@@ -2970,6 +3046,9 @@ function App() {
               status={speakingStatus}
               feedback={speakingFeedback}
               records={speakingRecords}
+              progress={speakingProgress}
+              retryBase={speakingRetryBase}
+              startSpeakingRetry={startSpeakingRetry}
               readStatus={readStatus}
               readPlaying={readPlaying}
               playSpeakingText={playSpeakingText}
@@ -3100,13 +3179,45 @@ function SpeakingPractice({
   status,
   feedback,
   records,
+  progress,
+  retryBase,
+  startSpeakingRetry,
   readStatus,
   readPlaying,
   playSpeakingText,
   stopSpeakingRead
 }) {
+  const abilityScores = feedback?.abilityScores || {};
+  const abilityItems = [
+    ['流利度', abilityScores.fluency],
+    ['语法稳定', abilityScores.grammar],
+    ['词汇自然', abilityScores.vocabulary],
+    ['回答结构', abilityScores.structure]
+  ];
+  const shadowingLines = Array.isArray(feedback?.shadowingLines)
+    ? feedback.shadowingLines.filter(Boolean).slice(0, 6)
+    : [];
+
   return (
     <div className="speaking-layout">
+      <section className="speaking-progress">
+        <div>
+          <span>今日开口</span>
+          <strong>{progress.todayCount}</strong>
+          <p>每多录一遍，嘴就少一点陌生感。</p>
+        </div>
+        <div>
+          <span>最近均分</span>
+          <strong>{progress.recentAverage ?? '--'}</strong>
+          <p>看趋势，不纠结单次发挥。</p>
+        </div>
+        <div>
+          <span>历史最佳</span>
+          <strong>{progress.bestScore ?? '--'}</strong>
+          <p>目标是把最佳状态变成常态。</p>
+        </div>
+      </section>
+
       <section className="speaking-prompt">
         <div>
           <span>Day {topic.day} · {topic.category}</span>
@@ -3138,6 +3249,11 @@ function SpeakingPractice({
         </div>
 
         {!SpeechRecognition && <p className="writing-error">当前浏览器不支持语音识别，建议用 Chrome 打开。</p>}
+        {retryBase && (
+          <p className="speaking-challenge">
+            第二遍挑战：参考上一版 {retryBase.wordCount} 词，试着完成“{retryBase.retryMission || '多说一句具体例子'}”。
+          </p>
+        )}
         {status && <p className="speaking-status">{status}</p>}
 
         <label className="writing-editor">
@@ -3164,9 +3280,32 @@ function SpeakingPractice({
       {feedback && (
         <section className="writing-report speaking-report">
           <div className="writing-score">
-            <span>口语评分</span>
+            <span>{feedback.progressBadge || '口语评分'}</span>
             <strong>{feedback.score ?? '--'}</strong>
             <p>{feedback.summary}</p>
+          </div>
+
+          {feedback.encouragement && <p className="speaking-encouragement">{feedback.encouragement}</p>}
+
+          <div className="speaking-ability-grid">
+            {abilityItems.map(([label, value]) => (
+              <div key={label}>
+                <span>{label}</span>
+                <strong>{value ?? '--'}</strong>
+              </div>
+            ))}
+          </div>
+
+          <div className="speaking-retry-card">
+            <div>
+              <span>下一遍挑战</span>
+              <strong>{feedback.retryMission || '再录一次，只让答案更清楚一点。'}</strong>
+              {feedback.pronunciationHint && <p>{feedback.pronunciationHint}</p>}
+            </div>
+            <button type="button" className="primary-button" onClick={startSpeakingRetry} disabled={recording || loading}>
+              <Mic size={18} />
+              再录一次
+            </button>
           </div>
 
           {readStatus && <p className="writing-read-status">{readStatus}</p>}
@@ -3192,6 +3331,29 @@ function SpeakingPractice({
             <p>{feedback.naturalVersion}</p>
           </div>
 
+          {feedback.oneSentenceUpgrade && (
+            <div className="speaking-upgrade">
+              <span>一句升级</span>
+              <p>{feedback.oneSentenceUpgrade}</p>
+            </div>
+          )}
+
+          {!!shadowingLines.length && (
+            <div className="speaking-shadowing">
+              <span>逐句跟读</span>
+              {shadowingLines.map((line, lineIndex) => (
+                <button
+                  type="button"
+                  key={`${line}-${lineIndex}`}
+                  onClick={() => playSpeakingText(line, `第 ${lineIndex + 1} 句`)}
+                >
+                  <Volume2 size={16} />
+                  {line}
+                </button>
+              ))}
+            </div>
+          )}
+
           <FeedbackList title="3个主要问题" items={feedback.errors} />
           <FeedbackList title="5个可背表达" items={feedback.memorableExpressions} />
           <FeedbackList title="下一轮练习建议" items={feedback.nextPractice} />
@@ -3200,11 +3362,14 @@ function SpeakingPractice({
 
       {!!records.length && (
         <section className="writing-history">
-          <span>最近口语记录</span>
+          <span>最近口语记录 · 连续 {progress.streak} 天</span>
           {records.slice(0, 3).map((record) => (
             <div key={record.id}>
               <strong>{record.feedback?.score ?? '--'} · Day {record.topic.day}</strong>
-              <p>{record.topic.title}</p>
+              <p>
+                {record.topic.title}
+                {record.retryFrom ? ' · 第二遍挑战' : ''}
+              </p>
             </div>
           ))}
         </section>

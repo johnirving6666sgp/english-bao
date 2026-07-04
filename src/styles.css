@@ -1059,6 +1059,45 @@ textarea[readonly] {
   background: #1f3f5f;
 }
 
+.speaking-progress {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.speaking-progress div {
+  min-height: 112px;
+  padding: 16px;
+  border: 1px solid #d9e1ea;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.speaking-progress span,
+.speaking-retry-card span,
+.speaking-upgrade span,
+.speaking-shadowing span,
+.speaking-ability-grid span {
+  display: block;
+  margin-bottom: 8px;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.speaking-progress strong {
+  display: block;
+  color: #182230;
+  font-size: 34px;
+  line-height: 1;
+}
+
+.speaking-progress p {
+  margin: 10px 0 0;
+  color: #667085;
+  line-height: 1.45;
+}
+
 .writing-prompt span,
 .speaking-prompt span,
 .writing-editor span,
@@ -1163,6 +1202,18 @@ textarea[readonly] {
   color: #475467;
   background: #f8fafc;
   font-weight: 800;
+}
+
+.speaking-challenge,
+.speaking-encouragement {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid #c7d7fe;
+  border-radius: 8px;
+  color: #344054;
+  background: #eef4ff;
+  font-weight: 850;
+  line-height: 1.5;
 }
 
 .writing-error {
@@ -1293,13 +1344,77 @@ textarea[readonly] {
 }
 
 .band-grid div,
+.speaking-ability-grid div,
 .speaking-polished,
+.speaking-retry-card,
+.speaking-upgrade,
+.speaking-shadowing,
 .writing-comparison > div,
 .writing-history div {
   padding: 14px;
   border: 1px solid #eef2f6;
   border-radius: 8px;
   background: #f8fafc;
+}
+
+.speaking-ability-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.speaking-ability-grid strong {
+  display: block;
+  color: #182230;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.speaking-retry-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.speaking-retry-card strong {
+  display: block;
+  color: #14532d;
+  line-height: 1.45;
+}
+
+.speaking-retry-card p,
+.speaking-upgrade p {
+  margin: 8px 0 0;
+  color: #344054;
+  line-height: 1.55;
+}
+
+.speaking-shadowing {
+  display: grid;
+  gap: 8px;
+}
+
+.speaking-shadowing button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d9e1ea;
+  border-radius: 8px;
+  color: #182230;
+  background: #ffffff;
+  text-align: left;
+  line-height: 1.45;
+}
+
+.speaking-shadowing button:hover {
+  border-color: #8bb6de;
+  background: #f8fbff;
 }
 
 .band-grid span {
@@ -1471,8 +1586,11 @@ textarea[readonly] {
   .writing-library-head,
   .writing-library-filters,
   .speaking-prompt,
+  .speaking-progress,
+  .speaking-retry-card,
   .writing-toolbar,
   .writing-comparison,
+  .speaking-ability-grid,
   .band-grid {
     display: grid;
     grid-template-columns: 1fr;

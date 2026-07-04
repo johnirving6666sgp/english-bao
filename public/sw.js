@@ -1,4 +1,4 @@
-const APP_CACHE = 'english-bao-app-v1';
+const APP_CACHE = 'english-bao-app-v2';
 const AUDIO_CACHE = 'english-bao-audio-v1';
 const CORE_ASSETS = ['/', '/index.html', '/manifest.webmanifest'];
 
