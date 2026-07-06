@@ -842,7 +842,7 @@ function App() {
       setOfflineStatus('正在准备离线缓存。');
       await navigator.serviceWorker?.ready?.catch(() => null);
 
-      const appCache = await caches.open('english-bao-app-v1');
+      const appCache = await caches.open('english-bao-app-v3');
       const shellUrls = [
         '/',
         '/index.html',
