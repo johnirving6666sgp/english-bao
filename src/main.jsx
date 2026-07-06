@@ -25,6 +25,7 @@ import { generatedExampleTranslations } from './exampleTranslations';
 import { listeningAudioManifest } from './listeningAudioManifest';
 import { listeningVocabEntries } from './listeningVocabData';
 import { repeatPackageManifest } from './repeatPackageManifest';
+import { speakingTopics } from './speakingTopics';
 import { vocabChapters } from './vocabData';
 import './styles.css';
 
@@ -346,39 +347,6 @@ const writingTopics = [
     question:
       'Some people think traditional customs should be preserved, while others believe people should be free to change them. Discuss both views and give your opinion.'
   }
-];
-
-const speakingTopics = [
-  { id: 'day-01', day: 1, category: '基础表达', title: 'Introduce myself', prompt: 'Introduce yourself, your work, and why you want to improve your spoken English.', structure: ['My name is...', 'I mainly work on...', 'My English goal is...'] },
-  { id: 'day-02', day: 2, category: '工作生活', title: 'My daily work', prompt: 'Describe your daily work and the tasks you usually need to manage.', structure: ['My daily work includes...', 'The most important task is...', 'I need to communicate with...'] },
-  { id: 'day-03', day: 3, category: '投资表达', title: 'My investment strategy', prompt: 'Explain your investment strategy in simple English.', structure: ['My strategy is...', 'I usually look at...', 'The biggest risk is...'] },
-  { id: 'day-04', day: 4, category: '公司分析', title: 'A company I recently studied', prompt: 'Talk about a company you recently studied and what attracted your attention.', structure: ['This company mainly does...', 'What interests me is...', 'I still need to understand...'] },
-  { id: 'day-05', day: 5, category: '管理场景', title: 'A business problem I’m solving', prompt: 'Describe a business problem you are solving now.', structure: ['The problem is...', 'The reason is...', 'My next step is...'] },
-  { id: 'day-06', day: 6, category: '管理场景', title: 'How I manage different teams', prompt: 'Explain how you manage teams or projects with different priorities.', structure: ['Different teams need...', 'I track progress by...', 'The challenge is...'] },
-  { id: 'day-07', day: 7, category: '学习复盘', title: 'My English learning goal', prompt: 'Talk about your English learning goal for the next month.', structure: ['My goal is...', 'I want to improve...', 'I will practise by...'] },
-  { id: 'day-08', day: 8, category: '公司分析', title: 'A company with strong customers', prompt: 'Describe a company with strong customers and why customer quality matters.', structure: ['The company serves...', 'Its customer base is...', 'This matters because...'] },
-  { id: 'day-09', day: 9, category: '管理判断', title: 'A company with weak execution', prompt: 'Talk about a company or team with weak execution and the impact it creates.', structure: ['The issue is not...', 'The real problem is...', 'This affects...'] },
-  { id: 'day-10', day: 10, category: '商业表达', title: 'Why customer quality matters', prompt: 'Explain why customer quality is important in business.', structure: ['High-quality customers...', 'They can help...', 'The risk is...'] },
-  { id: 'day-11', day: 11, category: '投资表达', title: 'How I evaluate management', prompt: 'Explain how you evaluate a company’s management team.', structure: ['I look at...', 'Good management usually...', 'A warning sign is...'] },
-  { id: 'day-12', day: 12, category: '行业观点', title: 'My view on electric vehicles', prompt: 'Share your view on the electric vehicle industry.', structure: ['The EV market is...', 'One opportunity is...', 'One risk is...'] },
-  { id: 'day-13', day: 13, category: 'AI工具', title: 'My view on AI tools', prompt: 'Explain how AI tools affect your work or business.', structure: ['AI tools help me...', 'They are useful for...', 'But they cannot...'] },
-  { id: 'day-14', day: 14, category: '投资表达', title: 'How I make investment decisions', prompt: 'Describe your process for making investment decisions.', structure: ['First, I look at...', 'Then I check...', 'Finally, I decide...'] },
-  { id: 'day-15', day: 15, category: '复盘纠错', title: 'A mistake I made in business', prompt: 'Talk about a business mistake and what you learned from it.', structure: ['I once...', 'The mistake was...', 'I learned that...'] },
-  { id: 'day-16', day: 16, category: '复盘纠错', title: 'A mistake I made in investing', prompt: 'Talk about an investing mistake and the lesson behind it.', structure: ['I invested in...', 'I misunderstood...', 'Now I pay more attention to...'] },
-  { id: 'day-17', day: 17, category: 'AI工具', title: 'How I use agents at work', prompt: 'Explain how you use AI agents or automation in your work.', structure: ['I use agents to...', 'This saves time because...', 'The next improvement is...'] },
-  { id: 'day-18', day: 18, category: '执行管理', title: 'How I track key tasks', prompt: 'Describe how you track important tasks across projects.', structure: ['I track tasks by...', 'The key information is...', 'This helps me...'] },
-  { id: 'day-19', day: 19, category: '市场机会', title: 'A market opportunity I’m watching', prompt: 'Talk about a market opportunity you are watching.', structure: ['I’m watching...', 'The opportunity comes from...', 'I need to verify...'] },
-  { id: 'day-20', day: 20, category: '风险判断', title: 'A risk I’m concerned about', prompt: 'Describe a risk you are concerned about in business or investing.', structure: ['The risk is...', 'It may affect...', 'I can reduce the risk by...'] },
-  { id: 'day-21', day: 21, category: '销售增长', title: 'How to improve a company’s sales', prompt: 'Explain how a company can improve sales.', structure: ['The company should...', 'It needs to understand...', 'A practical step is...'] },
-  { id: 'day-22', day: 22, category: '执行管理', title: 'How to improve execution', prompt: 'Talk about how to improve execution in a team.', structure: ['Execution improves when...', 'Managers should...', 'The team needs...'] },
-  { id: 'day-23', day: 23, category: '团队管理', title: 'How to motivate a team', prompt: 'Explain how to motivate a team effectively.', structure: ['People are motivated by...', 'A manager should...', 'The most important thing is...'] },
-  { id: 'day-24', day: 24, category: '客户沟通', title: 'How to talk to a difficult customer', prompt: 'Describe how you would communicate with a difficult customer.', structure: ['First, I would listen...', 'Then I would explain...', 'The goal is...'] },
-  { id: 'day-25', day: 25, category: '竞争分析', title: 'How to analyze a competitor', prompt: 'Explain how you analyze a competitor.', structure: ['I compare...', 'Their advantage is...', 'Our response should be...'] },
-  { id: 'day-26', day: 26, category: '并购思考', title: 'A company I would like to acquire', prompt: 'Talk about a company you would like to acquire and why.', structure: ['I would consider...', 'The reason is...', 'The integration risk is...'] },
-  { id: 'day-27', day: 27, category: '学习探索', title: 'A business I want to understand better', prompt: 'Describe a business or industry you want to understand better.', structure: ['I want to understand...', 'The business model is...', 'I still have questions about...'] },
-  { id: 'day-28', day: 28, category: '计划表达', title: 'My plan for the next quarter', prompt: 'Explain your plan for the next quarter.', structure: ['Next quarter, I plan to...', 'The priority is...', 'I will measure progress by...'] },
-  { id: 'day-29', day: 29, category: '学习复盘', title: 'What I learned this month', prompt: 'Summarize what you learned this month.', structure: ['This month, I learned...', 'The most useful lesson was...', 'Next, I will...'] },
-  { id: 'day-30', day: 30, category: '学习复盘', title: 'My English progress after one month', prompt: 'Review your English progress after one month of practice.', structure: ['Compared with one month ago...', 'I can now...', 'I still need to improve...'] }
 ];
 
 const getListeningOptions = (entry) => {
@@ -2591,7 +2559,7 @@ function App() {
               >
                 {speakingTopics.map((topic) => (
                   <option key={topic.id} value={topic.id}>
-                    Day {topic.day} · {topic.title}
+                    {topic.label || `Topic ${topic.day}`} · {topic.title}
                   </option>
                 ))}
               </select>
@@ -2992,8 +2960,8 @@ function App() {
           <div className="card-meta">
             {mode === 'speaking' ? (
               <>
-                <span>30-Day Speaking</span>
-                <span>Day {currentSpeakingTopic.day}</span>
+                <span>IELTS Speaking Set</span>
+                <span>{currentSpeakingTopic.label || `Topic ${currentSpeakingTopic.day}`}</span>
                 <span>{currentSpeakingTopic.category}</span>
                 <span>{speakingWordCount} words</span>
               </>
@@ -3219,7 +3187,7 @@ function SpeakingPractice({
 
       <section className="speaking-prompt">
         <div>
-          <span>Day {topic.day} · {topic.category}</span>
+          <span>{topic.label || `Topic ${topic.day}`} · {topic.category}</span>
           <strong>{topic.title}</strong>
           <p>{topic.prompt}</p>
         </div>
@@ -3230,6 +3198,25 @@ function SpeakingPractice({
           ))}
         </div>
       </section>
+
+      {(topic.reference || topic.cuePoints?.length) && (
+        <section className="speaking-reference">
+          {topic.cuePoints?.length ? (
+            <div>
+              <span>题卡要点</span>
+              {topic.cuePoints.map((point) => (
+                <p key={point}>{point}</p>
+              ))}
+            </div>
+          ) : null}
+          {topic.reference ? (
+            <div>
+              <span>参考内容</span>
+              <p>{topic.reference}</p>
+            </div>
+          ) : null}
+        </section>
+      )}
 
       <form className="speaking-form" onSubmit={submitSpeaking}>
         <div className="writing-toolbar">
@@ -3364,7 +3351,7 @@ function SpeakingPractice({
           <span>最近口语记录 · 连续 {progress.streak} 天</span>
           {records.slice(0, 3).map((record) => (
             <div key={record.id}>
-              <strong>{record.feedback?.score ?? '--'} · Day {record.topic.day}</strong>
+              <strong>{record.feedback?.score ?? '--'} · {record.topic.label || `Topic ${record.topic.day}`}</strong>
               <p>
                 {record.topic.title}
                 {record.retryFrom ? ' · 第二遍挑战' : ''}

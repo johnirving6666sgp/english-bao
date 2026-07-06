@@ -1194,6 +1194,34 @@ textarea[readonly] {
   font-weight: 850;
 }
 
+.speaking-reference {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.speaking-reference div {
+  padding: 16px;
+  border: 1px solid #d9e1ea;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.speaking-reference span {
+  display: block;
+  margin-bottom: 8px;
+  color: #667085;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.speaking-reference p {
+  margin: 6px 0 0;
+  color: #344054;
+  font-weight: 750;
+  line-height: 1.55;
+}
+
 .speaking-status {
   margin: 0;
   padding: 10px 12px;
